@@ -17,4 +17,4 @@ The application will enable the business owner to get a bird's eye view of the d
 |Surender Pal|20CS36CL|
 
 ## License
-Lo parts of this project can be copied or distributed in any manner without the explicit written conscent of all of its owners.
+No part of this project can be copied or distributed in any manner without the explicit written conscent of all of its owners.
