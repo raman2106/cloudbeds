@@ -1,26 +1,37 @@
 from flask import Flask, render_template, request
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField
+from wtforms import EmailField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
 #Create a Flask instance
 app = Flask(__name__)
-app.config['SECRET_KEY'] = "Super secret key. Do not upload to public github repo."
+app.config['SECRET_KEY'] = "Super secret key. Do not upload to public github repo." # Used to create the CSRF token
 
 #Create a Form class
 class LoginForm(FlaskForm):
-  username = StringField("Username", validators=[DataRequired()])
-  password = StringField("Password", validators=[DataRequired()])
-  submit = SubmitField("Submit")
+  username = EmailField("Username", validators=[DataRequired()])
+  password = PasswordField("Password", validators=[DataRequired()])
+  login = SubmitField("login")
 
-@app.route("/")
+@app.route("/", methods=["GET","POST"])
 # def login():
 #   return render_template("login.html")
 def home():
-  #Log the client's IP'
-  client_ip = request.remote_addr
-  print(f'Client IP:{client_ip}')#Improvement: Should we log it to a log file?
-  return render_template("login.html")
+  username = None
+  password = None
+  login_form = LoginForm()
+  #Validate form
+  if login_form.validate_on_submit():
+    username = login_form.username.data
+    print(username)
+    login_form.username.data = ""
+    password = login_form.password.data
+    login_form.password.data = ""
+
+  return render_template("login.html",
+                        username = username,
+                        password = password,
+                        login_form = login_form)
 
 #Invalid URL
 @app.errorhandler(404)
