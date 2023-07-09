@@ -14,7 +14,7 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # app.config['SQLALCHEMY_QUOTED_IDENTIFIERS'] = True  # Preserve casing
-app.secret_key = 'your_secret_key'  # used to encrypt session data
+app.secret_key = 'sec_k_21'  # used to encrypt session data
 
 # Instantiate the MySQL DB
 db = SQLAlchemy(app)
