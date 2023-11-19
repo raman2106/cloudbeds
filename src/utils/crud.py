@@ -66,9 +66,10 @@ def create_employee(db: Session, payload: schemas.CreateEmployee)-> schemas.Crea
     result: schemas.CreateEmployeeResult = schemas.CreateEmployeeResult(emp_id=employee.emp_id)
     return result
 
-def list_employees(db: Session) -> List[schemas.ReadFullEmployeeData]:
+def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.ReadFullEmployeeData]:
     '''
     Returns a list of all the employee records available in the database.
+    By default, it returns the first 10 records. 
     '''
     #FIXME: Implement pagination
     # Create  a join statement to get the full employee data from the database
@@ -87,7 +88,7 @@ def list_employees(db: Session) -> List[schemas.ReadFullEmployeeData]:
                 models.EmployeeAddress.state,
                 models.EmployeeAddress.pin).    \
             select_from(models.Employee).   \
-            join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id)
+            join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id).limit(limit).offset(skip)
 
     employees: list(schemas.ReadFullEmployeeData) = db.execute(stmt).fetchall()
     return employees

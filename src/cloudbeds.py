@@ -77,9 +77,9 @@ async def add_employee(payload: schemas.CreateEmployee, db: Session = Depends(ge
          name = "List Employees",
          response_model=List[schemas.ReadFullEmployeeData],
          tags=["admin"])
-#FIXME: Implement pagination
-async def list_employees(db: Session = Depends(get_db)):
-    result:List[schemas.ReadFullEmployeeData] = crud.list_employees(db=db)
+
+async def list_employees(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
+    result:List[schemas.ReadFullEmployeeData] = crud.list_employees(db=db, skip=skip, limit=limit)
     return result
 
 
