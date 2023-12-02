@@ -4,6 +4,7 @@ from typing import List
 from utils import models, schemas, crud
 from utils.database import SessionLocal, engine
 from sqlalchemy.orm.session import Session
+from werkzeug.security import generate_password_hash
 
 #Used in Test endpoints
 from pydantic import EmailStr
@@ -33,7 +34,7 @@ def get_db():
 #==========================
 # Admin endpoints
 #==========================
-# Create methods
+# Create operations
 @api.post("/add_employee/", 
           name="Add Employee",
           response_model=schemas.EmployeePasswordOut,
@@ -50,8 +51,7 @@ async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db
     return result
 
 
-
-# Get endpoints
+# Read operations
 @api.get("/get_emp/",
          name="Get Employee",
          response_model=schemas.EmployeeOut,
@@ -78,6 +78,23 @@ async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int
         return employees
     else:
         raise HTTPException(status_code=404, detail="The database is empty.")        
+
+
+# Update operations
+@api.post("/password_reset/{emp_id}",
+         name="Reset Employee Password",
+         response_model=schemas.EmployeePasswordOut,
+         tags=["admin"],
+         description= '''Resets the password of the specified employee. 
+         If employee ID isn't found in the database, it returns HTTP 404.'''
+         )
+async def reset_password(emp_id: int, db: Session = Depends(get_db)):
+    employee: schemas.EmployeeOut|None = crud.get_employee(emp_id, db)
+    if employee:
+        result: schemas.EmployeePasswordOut = crud.reset_password(emp_id, db)        
+        return result
+    else:
+        raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
 
 

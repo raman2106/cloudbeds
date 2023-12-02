@@ -1,10 +1,11 @@
 from sqlalchemy.orm.session import Session
 from . import models, schemas
 from pydantic import EmailStr, SecretStr
-from sqlalchemy import select, Row, or_, Column
+from sqlalchemy import select, Row, or_, update
 from itertools import islice
 from typing import List
 import secrets, string
+from werkzeug.security import generate_password_hash
 
 def generate_password(length=10) -> str:
     '''
@@ -115,4 +116,13 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     db.commit()
     # Create the return payload
     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
+    return result
+
+def reset_password(emp_id, db) -> schemas.EmployeePasswordOut:
+    # Create an update statement
+    password:SecretStr = generate_password()
+    stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=generate_password_hash(password))
+    print(stmt)
+    # Create the return payload
+    result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
     return result
