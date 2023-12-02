@@ -15,7 +15,6 @@ def generate_password(length=10) -> str:
     password: SecretStr = ''.join(secrets.choice(characters) for _ in range(length))
     return password
 
-
 def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     '''Builds the EmployeeOut payload'''
     emp_id: int = result.emp_id
@@ -24,7 +23,6 @@ def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     # Create an instance of the EmployeeOut class
     employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
     return employee
-
 
 def get_employee(id: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
     '''
@@ -94,7 +92,6 @@ def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.
             employees.append(build_emp_out_payload(employee))
         return employees
     return None
-
 
 def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.EmployeePasswordOut:
     '''
