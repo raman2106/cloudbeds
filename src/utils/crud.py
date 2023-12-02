@@ -115,11 +115,14 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
     return result
 
-def reset_password(emp_id, db) -> schemas.EmployeePasswordOut:
+def reset_password(emp_id, db: Session) -> schemas.EmployeePasswordOut:
     # Create an update statement
     password:SecretStr = generate_password()
     stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=generate_password_hash(password))
     print(stmt)
+    
+    db.execute(stmt)
+    db.commit()
     # Create the return payload
     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
     return result
