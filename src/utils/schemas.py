@@ -1,121 +1,78 @@
-from pydantic import BaseModel, Field, SecretStr, EmailStr
-from datetime import date, timedelta
-from typing import Annotated
-from enum import Enum
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    root_validator,
+    validator
+)
+from typing import Any
 
-# The *Base model stores the common feilds required during read as well as Create/update operations 
-#FIXME: Add validation for the model's fields
-
-
-class _EmployeeBase(BaseModel):
-    '''
-    Specifies the common fields used in the following classes:
-    * CreateEmployee
-    * ReadEmployee 
-    '''
-    first_name: str
+class EmployeeBase(BaseModel):
+    first_name: str 
     middle_name: str | None
     last_name: str
-    phone: str
     email: EmailStr
+    phone: str
     is_active: bool = False
 
-    class Config:
-        allow_population_by_field_name = True
-        from_attributes=True
+    # @root_validator(pre=True)
+    # def check_string_length(cls, values: dict[str, Any]):
+    #     for field_name, field_value in values.items():
+    #         if isinstance(field_value, str):
+    #             if len(field_value) > 20:
+    #                 raise ValueError(f"{field_name} exceeds maximum length (limit: 20)")
+    #     return values    
 
-class AddressTypeEnum(str, Enum):
-    Correspondence = "Correspondence"
-    Permanent = "Permanent"
+    # @validator("email", "phone")
+    # def check_length(cls, value: str, field: str) -> str:
+    #     if field.name == "email":
+    #         max_len: int = 40
+    #     elif field.name == "phone":
+    #         max_len: int = 20
+    #     else:
+    #         raise ValueError(f"Unexpected field: {field.name}")
 
-class _EmployeeAddressBase(BaseModel):
-    '''
-    Specifies the common fields used in the following classes:
-    * CreateEmployeeAddress
-    * ReadEmployeeAddress 
-    '''
-    emp_id: int
+    #     if len(value) > max_len:
+    #         raise ValueError(f"{field.name} exceeds maximum length (limit: {max_len})")
+    #     return value  
+
+class EmployeeAddressBase(BaseModel):
     first_line: str
-    second_line: str
-    landmark: str
+    second_line: str|None
+    landmark: str|None
     district: str
     state: str
     pin: str
-    address_type: AddressTypeEnum
+    address_type: str
 
-    class Config:
-        allow_population_by_field_name = True
-        from_attributes=True
+    # @root_validator(pre=True)
+    # def check_string_length(cls, values: dict[str, Any]):
+    #     for field_name, field_value in values.items():
+    #         if isinstance(field_value, str):
+    #             if len(field_value) > 20:
+    #                 raise ValueError(f"{field_name} exceeds maximum length (limit: 20)")
+    #     return values    
 
-class _EmployeePassword(BaseModel):
-    '''
-    Specifies the password attribute for an employee. Use this class with CreateEmployee class only.
-    '''
-    value: SecretStr
+    # @validator("landmark", "district", "state", "pin", "address_type")
+    # def check_length(cls, value: str, field: str) -> str:
+    #     if field.name == "landmark" or field.name == "district":
+    #         max_len: int = 30
+    #     elif field.name == "state" or field.name == "address_type":
+    #         max_len: int = 20
+    #     elif field.name == "pin":
+    #         max_len: int = 20
+    #     else:
+    #         raise ValueError(f"Unexpected field: {field.name}")
 
-class CreateEmployee(BaseModel):
-    '''
-    Specifies the attributes required to create an employee record in the database.
-    It includes the following group of fields:
-    * emp_details
-    * password
-    * address
-    '''
-    emp_details: _EmployeeBase
-    password: _EmployeePassword
-    address: _EmployeeAddressBase
+    #     if len(value) > max_len:
+    #         raise ValueError(f"{field.name} exceeds maximum length (limit: {max_len})")
+    #     return value 
 
-class ReadEmployee(BaseModel):
-    '''
-    Specifies the fields required to read details of an employee (without address) from the database. 
-    '''
+class EmployeeIn(BaseModel):
+    emp_details: EmployeeBase
+    emp_address: EmployeeAddressBase
+
+class EmployeeOut(BaseModel):
     emp_id: int
-    details: _EmployeeBase
-    
-    class Config:
-        orm_mode = True
-    
+    emp_details: EmployeeBase
+    emp_address: EmployeeAddressBase
 
-class ReadEmployeeAddress(BaseModel):
-    '''
-    Specifies the fields required to read address of an employee (withiut employee details such as name, email, and so on) from the database.
-    '''
-    address_id: int | None
-    details: _EmployeeAddressBase
-
-    class Config:
-        orm_mode = True
-
-# class ReadFullEmployeeData(BaseModel):
-#     '''
-#     Specifies the fields required to read complete details of an employee from the database.
-#     '''
-#     employee_details: ReadEmployee
-#     #FIXME: schemas.ReadEmployeeAddress(address) should be a list
-#     address: ReadEmployeeAddress
-
-
-class CreateEmployeeResult(BaseModel):
-    '''
-    Specifies the fields returned upon successful creation of the following records in the DB:
-    * Employee
-    * EmployeeAddress
-    '''
-    emp_id: int
-
-    class Config:
-        from_attributes=True
-
-
-class UpdateEmployeeResponse(BaseModel):
-    '''
-    Specifies the fields returned upon successful update employee operation.
-    * msg
-    '''
-    msg: str
-
-
-class ReadFullEmployeeData(_EmployeeAddressBase, _EmployeeBase):
-    emp_id: int
-    class Config:
-        from_attributes=True
