@@ -1,9 +1,19 @@
 from sqlalchemy.orm.session import Session
 from . import models, schemas
-from pydantic import EmailStr
+from pydantic import EmailStr, SecretStr
 from sqlalchemy import select, Row, or_, Column
 from itertools import islice
 from typing import List
+import secrets, string
+
+def generate_password(length=10) -> str:
+    '''
+    Generates secured default password. Default length of the generated password record is 10.
+    '''
+    characters: str = string.ascii_letters + string.digits + string.punctuation
+    password: SecretStr = ''.join(secrets.choice(characters) for _ in range(length))
+    return password
+
 
 def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     '''Builds the EmployeeOut payload'''
@@ -83,3 +93,26 @@ def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.
             employees.append(build_emp_out_payload(employee))
         return employees
     return None
+
+
+def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.EmployeePasswordOut:
+    '''
+    Creates an employee record in the database.
+    '''
+    # Create a record in the Employees table
+    employee: models.Employee = models.Employee(**payload.emp_details.model_dump())
+    # Set a secured password
+    password:SecretStr = generate_password()
+    employee.set_password(password)
+    db.add(employee)
+    db.commit()
+    #Refresh the instance so that it contains any new data from the DB, such as generated record ID.
+    db.refresh(employee)
+    # Create a record in the EmployeeAddresses table
+    address: models.EmployeeAddress = models.EmployeeAddress(**payload.emp_address.model_dump(exclude="emp_id"))
+    address.emp_id = employee.emp_id
+    db.add(address)
+    db.commit()
+    # Create the return payload
+    result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
+    return result

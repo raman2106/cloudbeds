@@ -5,7 +5,7 @@ from utils import models, schemas, crud
 from utils.database import SessionLocal, engine
 from sqlalchemy.orm.session import Session
 
-#Used in Tes endpoints
+#Used in Test endpoints
 from pydantic import EmailStr
 import uvicorn
 
@@ -14,6 +14,7 @@ import uvicorn
 models.Base.metadata.create_all(bind=engine)
 
 api = FastAPI(title="CloudBeds API", version="1.0.0" )
+
 
 
 # Dependency
@@ -32,6 +33,25 @@ def get_db():
 #==========================
 # Admin endpoints
 #==========================
+# Create methods
+@api.post("/add_employee/", 
+          name="Add Employee",
+          response_model=schemas.EmployeePasswordOut,
+          tags=["admin"],
+          description='''Creates an employee record in the database.
+          If the provided email exists in the database, returns HTTP 404.''')
+#FIXME: Implement multiple addresses support (correspondence and permanent)
+#FIXME: Implement callback URL
+async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db)):
+    employee: schemas.EmployeeOut|None = crud.get_employee(payload.emp_details.email, db)
+    if employee:
+        raise HTTPException(status_code=400, detail="Email already registered.")
+    result: schemas.EmployeePasswordOut = crud.create_employee(payload, db)
+    return result
+
+
+
+# Get endpoints
 @api.get("/get_emp/",
          name="Get Employee",
          response_model=schemas.EmployeeOut,

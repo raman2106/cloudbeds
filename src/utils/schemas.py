@@ -2,7 +2,8 @@ from pydantic import (
     BaseModel,
     EmailStr,
     root_validator,
-    validator
+    validator,
+    SecretStr
 )
 from typing import Any
 
@@ -76,3 +77,6 @@ class EmployeeOut(BaseModel):
     emp_details: EmployeeBase
     emp_address: EmployeeAddressBase
 
+class EmployeePasswordOut(BaseModel):
+    emp_id: int
+    password: str
