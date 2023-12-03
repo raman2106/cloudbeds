@@ -105,7 +105,7 @@ async def reset_password(emp_id: int, db: Session = Depends(get_db)):
          name="Manage employee",
          response_model=schemas.ManageEmployeeOut,
          tags=["admin"],
-         description= '''Sets the activatus status of the specified employee. 
+         description= '''Sets the activation status of the specified employee. 
          If employee ID isn't found in the database, it returns HTTP 404.'''
          )
 async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(get_db)):

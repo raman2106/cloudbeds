@@ -116,6 +116,12 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     return result
 
 def reset_password(emp_id: int, db: Session) -> schemas.EmployeePasswordOut:
+    '''
+    Resets the employee's password and returns the new password to the caller.
+    Args:
+    * emp_id: (int) Employee ID
+    * db: (Session) SQL alchemy session
+    '''
     # Create an update statement
     password:SecretStr = generate_password()
     stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=generate_password_hash(password))
