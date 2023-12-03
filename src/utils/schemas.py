@@ -80,3 +80,7 @@ class EmployeeOut(BaseModel):
 class EmployeePasswordOut(BaseModel):
     emp_id: int
     password: str
+
+class ManageEmployeeOut(BaseModel):
+    emp_id: int
+    is_active: bool

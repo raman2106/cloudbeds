@@ -101,6 +101,20 @@ async def reset_password(emp_id: int, db: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
+@api.post("/manage_employee/{emp_id}",
+         name="Manage employee",
+         response_model=schemas.ManageEmployeeOut,
+         tags=["admin"],
+         description= '''Sets the activatus status of the specified employee. 
+         If employee ID isn't found in the database, it returns HTTP 404.'''
+         )
+async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(get_db)):
+    employee: schemas.EmployeeOut|None = crud.get_employee(emp_id, db)
+    if employee:
+        result: schemas.ManageEmployeeOut = crud.manage_employee(emp_id, is_active, db)        
+        return result
+    else:
+        raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
 
 if __name__ == "__main__":
