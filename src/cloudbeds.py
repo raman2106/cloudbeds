@@ -55,6 +55,15 @@ async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db
     result: schemas.EmployeePasswordOut = crud.create_employee(payload, db)
     return result
 
+@api.post("/rooms/create/",
+          name="Add room",
+          response_model="",
+          tags=["admin"],
+          description='''Creates a room in the database.''')
+async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+    result: schemas.RoomOut = crud.create_room(payload, db)
+    return result
+
 
 # Read operations
 @api.get("/get_emp/",
@@ -75,15 +84,28 @@ async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
          name="List Employees",
          response_model=List[schemas.EmployeeOut],
          tags=["admin"],
-         description= '''Returns the list of all employees from the database. If the database is empty, it returns HTTP 404.'''
+         description= '''Returns the list of all employees from the database.
+         If the database is empty, it returns HTTP 404.'''
          )
 async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
     employees: List[schemas.EmployeeOut]|None = crud.list_employees(db, skip, limit)
     if employees:
         return employees
     else:
-        raise HTTPException(status_code=404, detail="The database is empty.")        
+        raise HTTPException(status_code=404, detail="There are no employees in the database.")        
 
+@api.get("/rooms/list/",
+         name="List Rooms",
+         response_model=List[schemas.RoomOut],
+         tags=["admin"],
+         description='''Returns list of all the rooms from the database.
+         If the database is empty, it returns HTTP 404.''')
+async def list_rooms(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
+    rooms: List[schemas.RoomOut]|None = crud.list_rooms(db, skip, limit)
+    if rooms:
+        return rooms
+    else:
+        raise HTTPException(status_code=404, detail="There are no rooms in the database.")
 
 # Update operations
 @api.post("/password_reset/{emp_id}",
@@ -115,6 +137,11 @@ async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(ge
         return result
     else:
         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
+
+
+#=============================
+# Front-desk Manager endpoints
+#=============================
 
 
 if __name__ == "__main__":

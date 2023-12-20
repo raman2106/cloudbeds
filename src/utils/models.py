@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, and_
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
@@ -61,3 +61,32 @@ class EmployeeAddress(Base):
             name='chk_address_type'
         ),
     )
+
+class RoomType(Base):
+    __tablename__ = "RoomTypes"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    room_type: Mapped[str] = mapped_column(String(45), nullable=False)
+
+    # Attributes used in relationships
+    rooms: Mapped[list["Room"]] = relationship("Room", back_populates="room_type")
+
+
+class RoomState(Base):
+    __tablename__ = "RoomStates"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    room_state: Mapped[str] = mapped_column(String(15), nullable=False)
+
+    # Attributes used in relationships
+    rooms: Mapped[list["Room"]] = relationship("Room", back_populates="room_state")
+
+
+class Room(Base):
+    __tablename__ = "Rooms"
+    room_num: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    # Foreign keys
+    r_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("RoomTypes.id"))
+    state_id: Mapped[int] = mapped_column(Integer, ForeignKey("RoomStates.id"))
+
+    # Define the back-reference to the RoomType and RoomState models
+    room_type: Mapped[RoomType] = relationship('RoomType', back_populates='rooms', foreign_keys=[r_type_id])
+    room_state: Mapped[RoomState] = relationship('RoomState', back_populates='rooms', foreign_keys=[state_id])

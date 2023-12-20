@@ -1,4 +1,4 @@
-from sqlalchemy.orm.session import Session
+from sqlalchemy.orm.session import Session, attributes
 from . import models, schemas
 from pydantic import EmailStr, SecretStr
 from sqlalchemy import select, Row, or_, update
@@ -85,13 +85,36 @@ def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.
         join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id). \
         limit(limit).offset(skip)
     
-    result: Row|None = db.execute(stmt).fetchall()
+    result: List[Row]|None = db.execute(stmt).fetchall()
     if result:
         employees:List[schemas.EmployeeOut] = []
         for employee in result:
             employees.append(build_emp_out_payload(employee))
         return employees
     return None
+
+def list_rooms(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.RoomOut]|None:
+    '''
+    Returns the list of the rooms from the database. If the database is empty, it returns [None].
+    By default, it returns 10 records at a time.
+    Args:
+        * db: SQL Alchemy session object
+        * skip: (int) Starting record number
+        * limit: (int) End record number
+    '''
+    stmt = select("*").    \
+        select_from(models.Room)
+    
+    result: List[Row]|None = db.execute(stmt).fetchall()
+
+    if result:
+        row: Row
+        rooms: List[schemas.RoomOut] = [row._asdict() for row in result]
+    else:
+        rooms = None
+
+    return rooms
+
 
 def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.EmployeePasswordOut:
     '''
@@ -113,6 +136,20 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     db.commit()
     # Create the return payload
     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
+    return result
+
+def create_room(payload: schemas.RoomBase, db: Session) -> schemas.RoomOut:
+    '''
+    Creates a room record in the database.
+    '''
+    room: models.Room = models.Room(**payload.model_dump())
+    db.add(room)
+    db.commit()
+    #Refresh the instance so that it contains any new data from the DB, such as generated record ID.
+    db.refresh(room)
+    # Get a dixt representation of the SQL table: attributes.instance_dict(room)
+    room_dict: dict = attributes.instance_dict(room)
+    result: schemas.RoomOut = schemas.RoomOut(**room_dict)
     return result
 
 def reset_password(emp_id: int, db: Session) -> schemas.EmployeePasswordOut:

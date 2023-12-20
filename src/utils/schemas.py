@@ -1,8 +1,9 @@
+# Fro more info on string constraint validator, see https://docs.pydantic.dev/latest/concepts/models/
 from pydantic import (
     BaseModel,
     EmailStr,
-    root_validator,
-    validator,
+    ConfigDict,
+    StringConstraints,
     SecretStr
 )
 from typing import Any
@@ -84,3 +85,12 @@ class EmployeePasswordOut(BaseModel):
 class ManageEmployeeOut(BaseModel):
     emp_id: int
     is_active: bool
+
+class RoomBase(BaseModel):
+    r_type_id: int
+    state_id: int = 1
+
+class RoomOut(BaseModel):
+    room_num: int
+    r_type_id: int
+    state_id: int
