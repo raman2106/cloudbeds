@@ -31,11 +31,16 @@ def get_db():
 #==========================
 # Admin endpoints
 #==========================
+
+#==========================
+# Employee endpoints
+#==========================
+
 # Create operations
-@api.post("/add_employee/", 
+@api.post("/emp/add/", 
           name="Add Employee",
           response_model=schemas.EmployeePasswordOut,
-          tags=["admin"],
+          tags=["Employee"],
           description='''Creates an employee record in the database.
           If the provided email exists in the database, returns HTTP 404.''')
 #FIXME: Implement multiple addresses support (correspondence and permanent)
@@ -46,22 +51,11 @@ async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="Email already registered.")
     result: schemas.EmployeePasswordOut = crud.create_employee(payload, db)
     return result
-
-@api.post("/rooms/create/",
-          name="Add room",
-          response_model="",
-          tags=["admin"],
-          description='''Creates a room in the database.''')
-async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
-    result: schemas.RoomOut = crud.create_room(payload, db)
-    return result
-
-
 # Read operations
 @api.get("/get_emp/",
          name="Get Employee",
          response_model=schemas.EmployeeOut,
-         tags=["admin"],
+         tags=["Employee"],
          description= '''Returns the details of an employee for the provided employee id or email. 
          If employee isn't found in the database, it returns HTTP 404.'''
          )
@@ -70,12 +64,15 @@ async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
     if employee:
         return employee
     else:
-        raise HTTPException(status_code=404, detail="Email isn't registered.")
+        if type(id) == int:
+            raise HTTPException(status_code=404, detail="Invalid employee ID.")
+        else:
+            raise HTTPException(status_code=404, detail="Email isn't registered.")
 
-@api.get("/get_emp/list/",
+@api.get("/emp/list/",
          name="List Employees",
          response_model=List[schemas.EmployeeOut],
-         tags=["admin"],
+         tags=["Employee"],
          description= '''Returns the list of all employees from the database.
          If the database is empty, it returns HTTP 404.'''
          )
@@ -86,24 +83,11 @@ async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int
     else:
         raise HTTPException(status_code=404, detail="There are no employees in the database.")        
 
-@api.get("/rooms/list/",
-         name="List Rooms",
-         response_model=List[schemas.RoomOut],
-         tags=["admin"],
-         description='''Returns list of all the rooms from the database.
-         If the database is empty, it returns HTTP 404.''')
-async def list_rooms(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
-    rooms: List[schemas.RoomOut]|None = crud.list_rooms(db, skip, limit)
-    if rooms:
-        return rooms
-    else:
-        raise HTTPException(status_code=404, detail="There are no rooms in the database.")
-
 # Update operations
-@api.post("/password_reset/{emp_id}",
+@api.put("/emp/password_reset/{emp_id}",
          name="Reset Employee Password",
          response_model=schemas.EmployeePasswordOut,
-         tags=["admin"],
+         tags=["Employee"],
          description= '''Resets the password of the specified employee. 
          If employee ID isn't found in the database, it returns HTTP 404.'''
          )
@@ -115,10 +99,10 @@ async def reset_password(emp_id: int, db: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
-@api.post("/manage_employee/{emp_id}",
+@api.put("/emp/manage/{emp_id}",
          name="Manage employee",
          response_model=schemas.ManageEmployeeOut,
-         tags=["admin"],
+         tags=["Employee"],
          description= '''Sets the activation status of the specified employee. 
          If employee ID isn't found in the database, it returns HTTP 404.'''
          )
@@ -129,6 +113,39 @@ async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(ge
         return result
     else:
         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
+
+
+
+
+
+#==========================
+# Room endpoints
+#==========================
+
+# Create operations
+@api.post("/rooms/add/",
+          name="Add room",
+          response_model="",
+          tags=["Room"],
+          description='''Creates a room in the database.''')
+async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+    result: schemas.RoomOut = crud.create_room(payload, db)
+    return result
+
+# Read operations
+@api.get("/rooms/list/",
+         name="List Rooms",
+         response_model=List[schemas.RoomOut],
+         tags=["Room"],
+         description='''Returns list of all the rooms from the database.
+         If the database is empty, it returns HTTP 404.''')
+async def list_rooms(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
+    rooms: List[schemas.RoomOut]|None = crud.list_rooms(db, skip, limit)
+    if rooms:
+        return rooms
+    else:
+        raise HTTPException(status_code=404, detail="There are no rooms in the database.")
+
 
 
 #=============================
