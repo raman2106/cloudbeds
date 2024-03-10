@@ -2,11 +2,13 @@
 from pydantic import (
     BaseModel,
     EmailStr,
-    ConfigDict,
-    StringConstraints,
-    SecretStr
+    Field
 )
-from typing import Any
+
+from enum import Enum
+from sqlalchemy.orm.session import Session
+from sqlalchemy import select, Row
+
 
 class EmployeeBase(BaseModel):
     first_name: str 
@@ -16,26 +18,6 @@ class EmployeeBase(BaseModel):
     phone: str
     is_active: bool = False
 
-    # @root_validator(pre=True)
-    # def check_string_length(cls, values: dict[str, Any]):
-    #     for field_name, field_value in values.items():
-    #         if isinstance(field_value, str):
-    #             if len(field_value) > 20:
-    #                 raise ValueError(f"{field_name} exceeds maximum length (limit: 20)")
-    #     return values    
-
-    # @validator("email", "phone")
-    # def check_length(cls, value: str, field: str) -> str:
-    #     if field.name == "email":
-    #         max_len: int = 40
-    #     elif field.name == "phone":
-    #         max_len: int = 20
-    #     else:
-    #         raise ValueError(f"Unexpected field: {field.name}")
-
-    #     if len(value) > max_len:
-    #         raise ValueError(f"{field.name} exceeds maximum length (limit: {max_len})")
-    #     return value  
 
 class EmployeeAddressBase(BaseModel):
     first_line: str
@@ -45,29 +27,6 @@ class EmployeeAddressBase(BaseModel):
     state: str
     pin: str
     address_type: str
-
-    # @root_validator(pre=True)
-    # def check_string_length(cls, values: dict[str, Any]):
-    #     for field_name, field_value in values.items():
-    #         if isinstance(field_value, str):
-    #             if len(field_value) > 20:
-    #                 raise ValueError(f"{field_name} exceeds maximum length (limit: 20)")
-    #     return values    
-
-    # @validator("landmark", "district", "state", "pin", "address_type")
-    # def check_length(cls, value: str, field: str) -> str:
-    #     if field.name == "landmark" or field.name == "district":
-    #         max_len: int = 30
-    #     elif field.name == "state" or field.name == "address_type":
-    #         max_len: int = 20
-    #     elif field.name == "pin":
-    #         max_len: int = 20
-    #     else:
-    #         raise ValueError(f"Unexpected field: {field.name}")
-
-    #     if len(value) > max_len:
-    #         raise ValueError(f"{field.name} exceeds maximum length (limit: {max_len})")
-    #     return value 
 
 class EmployeeIn(BaseModel):
     emp_details: EmployeeBase
@@ -86,11 +45,15 @@ class ManageEmployeeOut(BaseModel):
     emp_id: int
     is_active: bool
 
-class RoomBase(BaseModel):
-    r_type_id: int
-    state_id: int = 1
 
-class RoomOut(BaseModel):
-    room_num: int
-    r_type_id: int
-    state_id: int
+class RoomTypeBase(BaseModel):
+    room_types: list[str]
+
+class RoomStateBase(BaseModel):
+    room_states: list[str]
+    
+class RoomTypeIn(BaseModel):
+    room_type: str
+
+class GenericMessage(BaseModel):
+    msg:str

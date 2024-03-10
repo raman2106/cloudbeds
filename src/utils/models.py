@@ -90,3 +90,4 @@ class Room(Base):
     # Define the back-reference to the RoomType and RoomState models
     room_type: Mapped[RoomType] = relationship('RoomType', back_populates='rooms', foreign_keys=[r_type_id])
     room_state: Mapped[RoomState] = relationship('RoomState', back_populates='rooms', foreign_keys=[state_id])
+
