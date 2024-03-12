@@ -154,7 +154,7 @@ def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.Manage
     return result
 
 
-class Room():
+class RoomType():
     def __init__(self, db: Session):
         self.db = db
 
@@ -246,6 +246,17 @@ class Room():
                     case _:
                         raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}: DB operation failed.")
 
+    def _get_supported_room_types_with_id(self) -> List[Row]:
+        '''
+        Returns the supported room types with their IDs.
+
+        Returns:
+            list: A list of supported room types with their IDs.
+        '''
+        stmt = select(models.RoomType.id, models.RoomType.room_type)
+        result: list[Row] = self.db.execute(stmt).fetchall()
+        return result
+
     # Public methods
     def get_supported_room_types(self) -> schemas.RoomTypeBase:
             """
@@ -258,18 +269,6 @@ class Room():
             result: list[Row] = self.db.execute(stmt).fetchall()
             supported_room_types: list[str] = {"room_types":[row.room_type for row in result]}
             return supported_room_types
-
-    def get_supported_room_states(self) -> schemas.RoomStateBase:
-        """
-        Returns the supported room status.
-
-        Returns:
-            list: A list of room status.
-        """
-        stmt = select(models.RoomState.id, models.RoomState.room_state)
-        result: list[Row] = self.db.execute(stmt).fetchall()
-        room_status: list[str] = {"room_states":[row.room_state for row in result]}
-        return room_status
 
     def manage_room_types(self, action: str, room_type: str, new_room_type: str|None = None) -> schemas.GenericMessage:
         """
@@ -302,4 +301,149 @@ class Room():
         if result == 0:
             return {"msg":"Success"}
             
+class RoomState():
+    def __init__(self, db: Session):
+        self.db = db
 
+    def __add_room_state(self, room_state: str) -> int:
+        '''
+        Adds a room state to the database.
+
+        Returns:
+            0 (int): If the operation is successful.
+
+        Raises:
+            ValueError: If the room_state exists in the database.
+            DBError: If the operation fails to add the room state to the database.
+        '''
+        try:
+            # Check if the supplied room_state is available in DB. If yes, raise ValueError
+            stmt = Select(models.RoomState.room_state).where(models.RoomState.room_state == room_state)
+            result: Row = self.db.execute(stmt).fetchone()
+            if result:
+                raise ValueError
+            stmt =  Insert(models.RoomState).values(room_state=room_state)
+            self.db.execute(stmt)
+            self.db.commit()
+            return 0
+        except Exception as e:
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(f"{room_state} exists in the database.")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+        
+    def __delete_room_state(self, room_state: str) -> int:
+        '''
+        Removes a room state from the database.
+
+        Returns:
+            0 (int): If the operation is successful.
+
+        Raises:
+            ValueError: If the room_state doesn't exist in the database.
+        '''
+        try:
+            # Check if the supplied room_state is available in DB. If no, raise ValueError
+            stmt = Select(models.RoomState.room_state).where(models.RoomState.room_state == room_state)
+            result: Row = self.db.execute(stmt).fetchone()
+            if result == None:
+                raise ValueError            
+            stmt = Delete(models.RoomState).where(models.RoomState.room_state == room_state)
+            self.db.execute(stmt)
+            self.db.commit()
+            return 0
+        except Exception as e:
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(f"{room_state} doesn't exist in the database.")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+                
+    def __update_room_state(self, room_state: str, new_room_state: str) -> int:
+            '''
+            Updates a room  state in the database.
+            Returns:
+                0 if the operation is successful.
+            Raises:
+                ValueError: If the room_state doesn't exist in the database.
+                cloudbeds_exceptions.DBError: If the database operation fails.
+            '''
+            try:
+                # Check if the supplied room_state is available in DB. If not, raise ValueError.
+                stmt = Select(models.RoomState.room_state).where(models.RoomState.room_state == room_state)
+                result: Row = self.db.execute(stmt).fetchone()
+                if result is None:
+                    raise ValueError(f"{room_state} doesn't exist in the database.")
+                
+                stmt = update(models.RoomState).where(models.RoomState.room_state == room_state).values(room_state=new_room_state)
+                self.db.execute(stmt)
+                self.db.commit()
+                return 0
+            except Exception as e:
+                match e.__class__.__name__:
+                    case "ValueError":
+                        raise ValueError(f"{room_state} doesn't exist in the database.")
+                    case _:
+                        raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}: DB operation failed.")
+
+    def _get_supported_room_states_with_id(self) -> List[Row]:
+        '''
+        Returns the supported room states with their IDs.
+
+        Returns:
+            list: A list of supported room states with their IDs.
+        '''
+        stmt = select(models.RoomState.id, models.RoomState.room_state)
+        result: list[Row] = self.db.execute(stmt).fetchall()
+        return result
+
+    def get_supported_room_states(self) -> schemas.RoomStateBase:
+        """
+        Returns the supported room status.
+
+        Returns:
+            list: A list of room status.
+        """
+        stmt = select(models.RoomState.id, models.RoomState.room_state)
+        result: list[Row] = self.db.execute(stmt).fetchall()
+        room_status: list[str] = {"room_states":[row.room_state for row in result]}
+        return room_status
+
+    def manage_room_states(self, action: str, room_state: str, new_room_state: str|None = None) -> schemas.GenericMessage:
+        """
+        Manages the room_states in the models.room_state table.
+
+        Args:
+            action: (str) The action to be performed. It can be either "add", "update", or "delete".
+            room_state: (str) The room state to be added, updated, or deleted.
+            new_room_state: (str) The new room state to replace the current room state when updating.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            InvalidArgument: If the action is not valid. 
+            ValueError: 
+                *   If the room state already exists when adding.
+                *   If the room state doesn't exist when updating or removing.
+            DBError: If the operation fails due to an unknown error.
+        """
+        result:int
+        if action == "add":
+            result = self.__add_room_state(room_state)
+        elif action == "delete":
+            result = self.__delete_room_state(room_state)
+        elif action == "update":
+            result = self.__update_room_state(room_state, new_room_state)
+        else:
+            raise cloudbeds_exceptions.InvalidArgument("Invalid action. It should be either 'add', 'remove' or 'delete'.")
+        if result == 0:
+            return {"msg":"Success"}
+
+class Room(RoomType, RoomState):
+    def __init__(self, db: Session):
+        self.db = db
+        RoomType.__init__(self, db)
+        RoomState.__init__(self, db)
+          
