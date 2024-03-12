@@ -70,7 +70,6 @@ class RoomType(Base):
     # Attributes used in relationships
     rooms: Mapped[list["Room"]] = relationship("Room", back_populates="room_type")
 
-
 class RoomState(Base):
     __tablename__ = "RoomStates"
     id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
@@ -79,10 +78,10 @@ class RoomState(Base):
     # Attributes used in relationships
     rooms: Mapped[list["Room"]] = relationship("Room", back_populates="room_state")
 
-
 class Room(Base):
     __tablename__ = "Rooms"
-    room_num: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    room_id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    room_number: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     # Foreign keys
     r_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("RoomTypes.id"))
     state_id: Mapped[int] = mapped_column(Integer, ForeignKey("RoomStates.id"))

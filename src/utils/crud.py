@@ -257,6 +257,19 @@ class RoomType():
         result: list[Row] = self.db.execute(stmt).fetchall()
         return result
 
+    def _verify_room_type(self, room_type: str) -> bool:
+        '''
+        Verifies if the supplied room type exists in the database.
+
+        Returns:
+            bool: True if the room type exists in the database.
+        '''
+        stmt = select(models.RoomType.room_type).where(models.RoomType.room_type == room_type)
+        result: Row = self.db.execute(stmt).fetchone()
+        if result:
+            return True
+        return False
+
     # Public methods
     def get_supported_room_types(self) -> schemas.RoomTypeBase:
             """
@@ -398,6 +411,19 @@ class RoomState():
         result: list[Row] = self.db.execute(stmt).fetchall()
         return result
 
+    def _verify_room_state(self, room_state: str) -> bool:
+        '''
+        Verifies if the supplied room state exists in the database.
+
+        Returns:
+            bool: True if the room state exists in the database.
+        '''
+        stmt = select(models.RoomState.room_state).where(models.RoomState.room_state == room_state)
+        result: Row = self.db.execute(stmt).fetchone()
+        if result:
+            return True
+        return False
+
     def get_supported_room_states(self) -> schemas.RoomStateBase:
         """
         Returns the supported room status.
@@ -446,4 +472,50 @@ class Room(RoomType, RoomState):
         self.db = db
         RoomType.__init__(self, db)
         RoomState.__init__(self, db)
+
+    def add_room(self, room_number: int, room_type: str, room_state: str) -> schemas.GenericMessage:
+        '''
+        Adds a room to the database.
+
+        Args:
+            room_number: (int) The room number.
+            room_type: (str) The room type.
+            room_state: (str) The room state.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            ValueError: 
+                *   If the room type or room state doesn't exist in the database.
+                *   If the room number already exists in the database.
+            DBError: If the operation fails due to an unknown error.
+        '''
+        if not self._verify_room_type(room_type):
+            raise ValueError(f"{room_type} doesn't exist in the database.")
+        if not self._verify_room_state(room_state):
+            raise ValueError(f"{room_state} doesn't exist in the database.")
+        try:
+            # Check if the supplied room_number is available in DB. If yes, raise ValueError
+            stmt = Select(models.Room.room_number).where(models.Room.room_number == room_number)
+            result: Row = self.db.execute(stmt).fetchone()
+            if result:
+                raise ValueError
+            # Get room_type_id by using the room_type
+            room_types: list[Row] = self._get_supported_room_types_with_id()
+            r_type_id: int = [row.id for row in room_types if row.room_type == room_type][0]
+            # Get state_id by using the room_state
+            room_states: list[Row] = self._get_supported_room_states_with_id()
+            state_id: int = [row.id for row in room_states if row.room_state == room_state][0]
+            # Insert the room record
+            stmt = Insert(models.Room).values(room_number=room_number, r_type_id=r_type_id, state_id=state_id)
+            self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
+        except Exception as e:
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(f"{room_number} exists in the database.")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
           

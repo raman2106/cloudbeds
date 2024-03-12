@@ -1,13 +1,8 @@
 # Fro more info on string constraint validator, see https://docs.pydantic.dev/latest/concepts/models/
 from pydantic import (
     BaseModel,
-    EmailStr,
-    Field
+    EmailStr
 )
-
-from enum import Enum
-from sqlalchemy.orm.session import Session
-from sqlalchemy import select, Row
 
 
 class EmployeeBase(BaseModel):
@@ -17,7 +12,6 @@ class EmployeeBase(BaseModel):
     email: EmailStr
     phone: str
     is_active: bool = False
-
 
 class EmployeeAddressBase(BaseModel):
     first_line: str
@@ -45,7 +39,6 @@ class ManageEmployeeOut(BaseModel):
     emp_id: int
     is_active: bool
 
-
 class RoomTypeBase(BaseModel):
     room_types: list[str]
 
@@ -57,3 +50,8 @@ class RoomTypeIn(BaseModel):
 
 class GenericMessage(BaseModel):
     msg:str
+
+class RoomBase(BaseModel):
+    room_number: int
+    room_type: str
+    room_state: str | None = "Available"

@@ -266,6 +266,24 @@ async def update_room_state(room_state: str, new_room_state: str, db: Session = 
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
+@api.post("/room/add/",
+          name="Add Room",
+          response_model=schemas.GenericMessage,
+          tags=["Room"],
+          description='''Adds a new room to the database. 
+          If the room number already exists, it returns HTTP 400.'''
+          )
+async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+    room: crud.Room = crud.Room(db)
+    try:
+        result: schemas.GenericMessage = room.add_room(room_number=payload.room_number, room_type=payload.room_type, room_state=payload.room_state)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=400, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 #=============================
 # Front-desk Manager endpoints
