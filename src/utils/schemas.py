@@ -55,3 +55,7 @@ class RoomBase(BaseModel):
     room_number: int
     room_type: str
     room_state: str | None = "Available"
+
+class ListRooms(BaseModel):
+    room_type: str | None = None
+    room_state: str | None = None
