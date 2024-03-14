@@ -186,8 +186,12 @@ async def delete_room(room_number: str, db: Session = Depends(get_db)):
     description= '''Returns the list of rooms from the database that match the criteria specified in the payload.
     If the database is empty, it returns HTTP 404.'''
     )
-async def list_rooms(db: Session = Depends(get_db), skip: int = None, limit: int = None, \
-             room_number: str = None, room_type: str = None, room_state: str = None):
+async def list_rooms(db: Session = Depends(get_db), \
+                     room_number: str | None = None, \
+                     room_type: str | None = None, \
+                     room_state: str | None = None, \
+                     skip: int | None = None, \
+                     limit: int | None = None):
     """
     Retrieve the list of all rooms from the database.
 
