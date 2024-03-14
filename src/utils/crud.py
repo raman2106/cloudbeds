@@ -553,108 +553,189 @@ class Room(RoomType, RoomState):
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
-    def list_rooms(self, room_type: str|None = None, room_state: str|None = None) -> List[schemas.RoomBase]:
+    def list_rooms(self, skip: int, limit: int, room_number: str | None = None, room_type: str|None = None, room_state: str|None = None) -> List[schemas.RoomBase]:
         '''
         Returns the list of rooms from the database.
 
         Args:
+            skip (int): The number of records to skip.
+            limit (int): The maximum number of rooms to return.
+            room_type (str, optional): The room type to filter by. Defaults to None.
+            room_state (str, optional): The room state to filter by. Defaults to None.
+
+        Returns:
+            List[schemas.RoomBase]: A list of rooms.
+
+        Raises:
+            ValueError: If the room type or room state doesn't exist in the database.
+            DBError: If the operation fails due to an unknown error.
+        '''
+        if room_number:
+            room_number: int = int(room_number)
+            try:
+                # Query to get the list of rooms that match the specified room_number
+                stmt = select(models.Room.room_number, \
+                            models.RoomType.room_type, \
+                            models.RoomState.room_state).\
+                    select_from(models.Room,
+                                models.RoomType,
+                                models.RoomState).\
+                    where(\
+                        and_(\
+                            models.Room.r_type_id == models.RoomType.id, \
+                            models.Room.state_id ==  models.RoomState.id,\
+                            models.Room.room_number == room_number\
+                        )\
+                    )
+                result: list[Row] = self.db.execute(stmt).fetchall()
+                if result == []:
+                    raise ValueError
+                rooms: List[schemas.RoomBase] = [schemas.RoomBase.model_validate(row._asdict()) for row in result]
+                return rooms
+            except Exception as e:
+                match e.__class__.__name__:
+                    case "ValueError":
+                        raise ValueError(f"Couldn't find any rooms that match the specified criteria.")
+                    case _:
+                        raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+        
+        else:
+            # Check if the supplied room_type or room_state is available in DB. If not, raise ValueError.
+            # If room_type and room_state is available in DB, get the room_type_id and state_id.
+            if room_type:
+                if self._verify_room_type(room_type):
+                    room_type: (int) = [row.id for row in self._get_supported_room_types_with_id() \
+                                        if row.room_type.lower() == room_type.lower()][0]
+                else:
+                    raise ValueError(f"{room_type} doesn't exist in the database.")
+            if room_state:
+                if self._verify_room_state(room_state):
+                    room_state: (int) = [row.id for row in self._get_supported_room_states_with_id() \
+                                        if row.room_state.lower() == room_state.lower()][0]
+                else:
+                    raise ValueError(f"{room_state} doesn't exist in the database.")
+
+            try:
+                if room_type and room_state:
+                    # Query to get the list of rooms that match the specified room_type and room_state
+                    stmt = select(models.Room.room_number, \
+                                models.RoomType.room_type, \
+                                models.RoomState.room_state).\
+                        select_from(models.Room,
+                                    models.RoomType,
+                                    models.RoomState).\
+                        where(\
+                            and_(\
+                                models.Room.r_type_id == models.RoomType.id, \
+                                models.Room.state_id ==  models.RoomState.id,\
+                                models.Room.r_type_id == room_type, \
+                                models.Room.state_id == room_state\
+                            )\
+                        ).\
+                        limit(limit).offset(skip)
+                elif room_type:
+                    # Query to get the list of rooms that match the specified room_type and any room_state
+                    stmt = select(models.Room.room_number, \
+                                models.RoomType.room_type, \
+                                models.RoomState.room_state).\
+                        select_from(models.Room,
+                                    models.RoomType,
+                                    models.RoomState).\
+                        where(\
+                            and_(\
+                                models.Room.r_type_id == models.RoomType.id, \
+                                models.Room.state_id ==  models.RoomState.id,\
+                                models.Room.r_type_id == room_type \
+                            )\
+                        ).\
+                        limit(limit).offset(skip)
+                elif room_state:
+                    # Query to get the list of rooms that match any room_type and the specified room_state
+                    stmt = select(models.Room.room_number, \
+                                models.RoomType.room_type, \
+                                models.RoomState.room_state).\
+                        select_from(models.Room,
+                                    models.RoomType,
+                                    models.RoomState).\
+                        where(\
+                            and_(\
+                                models.Room.r_type_id == models.RoomType.id, \
+                                models.Room.state_id ==  models.RoomState.id,\
+                                models.Room.state_id == room_state\
+                            )\
+                        ).\
+                        limit(limit).offset(skip)
+                else:
+                    # Query to get the list of all rooms
+                    stmt = select(models.Room.room_number, \
+                                models.RoomType.room_type, \
+                                models.RoomState.room_state).\
+                        select_from(models.Room,
+                                    models.RoomType,
+                                    models.RoomState).\
+                        where(\
+                            and_(\
+                                models.Room.r_type_id == models.RoomType.id, \
+                                models.Room.state_id ==  models.RoomState.id \
+                            )\
+                        ).\
+                        limit(limit).offset(skip)
+                    
+                result: list[Row] = self.db.execute(stmt).fetchall()
+                if result == []:
+                    raise ValueError
+                rooms: List[schemas.RoomBase] = [schemas.RoomBase.model_validate(row._asdict()) for row in result]
+                return rooms
+            except Exception as e:
+                match e.__class__.__name__:
+                    case "ValueError":
+                        raise ValueError(f"Couldn't find any rooms that match the specified criteria.")
+                    case _:
+                        raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+            
+    def update_room(self, room_number: int, room_type: str, room_state: str) -> schemas.GenericMessage:
+        '''
+        Updates a room in the database.
+
+        Args:
+            room_number: (int) The room number.
             room_type: (str) The room type.
             room_state: (str) The room state.
 
         Returns:
-            list: A list of rooms.
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
 
         Raises:
-            *   ValueError: If the room type or room state doesn't exist in the database.
-            *   DBError: If the operation fails due to an unknown error.        
+            ValueError: 
+                *   If the room type or room state doesn't exist in the database.
+                *   If the room number doesn't exist in the database.
+            DBError: If the operation fails due to an unknown error.
         '''
-        # Check if the supplied room_type or room_state is available in DB. If not, raise ValueError.
-        # If room_type and room_state isavailable in DB, get the room_type_id and state_id.
-        if room_type:
-            if self._verify_room_type(room_type):
-                room_type: (int) = [row.id for row in self._get_supported_room_types_with_id() \
-                                    if row.room_type == room_type][0]
-            else:
-                raise ValueError(f"{room_type} doesn't exist in the database.")
-        if room_state:
-            if self._verify_room_state(room_state):
-                room_state: (int) = [row.id for row in self._get_supported_room_states_with_id() \
-                                    if row.room_state == room_state][0]
-            else:
-                raise ValueError(f"{room_state} doesn't exist in the database.")
-
+        if not self._verify_room_type(room_type):
+            raise ValueError(f"{room_type} doesn't exist in the database.")
+        if not self._verify_room_state(room_state):
+            raise ValueError(f"{room_state} doesn't exist in the database.")
         try:
-            if room_type and room_state:
-                # Query to get the list of rooms that matches the specified room_type and room_state
-                stmt = select(models.Room.room_number, \
-                              models.RoomType.room_type, \
-                              models.RoomState.room_state).\
-                    select_from(models.Room,
-                                models.RoomType,
-                                models.RoomState).\
-                    where(\
-                        and_(\
-                            models.Room.r_type_id == models.RoomType.id, \
-                            models.Room.state_id ==  models.RoomState.id,\
-                            models.Room.r_type_id == room_type, \
-                            models.Room.state_id == room_state\
-                        )\
-                    )
-            elif room_type:
-                # Query to get the list of rooms that matches the specified room_type and any room_state
-                stmt = select(models.Room.room_number, \
-                              models.RoomType.room_type, \
-                              models.RoomState.room_state).\
-                    select_from(models.Room,
-                                models.RoomType,
-                                models.RoomState).\
-                    where(\
-                        and_(\
-                            models.Room.r_type_id == models.RoomType.id, \
-                            models.Room.state_id ==  models.RoomState.id,\
-                            models.Room.r_type_id == room_type \
-                        )\
-                    )
-            elif room_state:
-                # Query to get the list of rooms that matches any room_type and the specified room_state
-                stmt = select(models.Room.room_number, \
-                              models.RoomType.room_type, \
-                              models.RoomState.room_state).\
-                    select_from(models.Room,
-                                models.RoomType,
-                                models.RoomState).\
-                    where(\
-                        and_(\
-                            models.Room.r_type_id == models.RoomType.id, \
-                            models.Room.state_id ==  models.RoomState.id,\
-                            models.Room.state_id == room_state\
-                        )\
-                    )
-            else:
-                # Query to get the list of all rooms
-                stmt = select(models.Room.room_number, \
-                              models.RoomType.room_type, \
-                              models.RoomState.room_state).\
-                    select_from(models.Room,
-                                models.RoomType,
-                                models.RoomState).\
-                    where(\
-                        and_(\
-                            models.Room.r_type_id == models.RoomType.id, \
-                            models.Room.state_id ==  models.RoomState.id \
-                        )\
-                    )
-            result: list[Row] = self.db.execute(stmt).fetchall()
+            # Check if the supplied room_number is available in DB. If no, raise ValueError
+            stmt = Select(models.Room.room_number).where(models.Room.room_number == room_number)
+            result: Row = self.db.execute(stmt).fetchone()
             if result == None:
                 raise ValueError
-            rooms: List[schemas.RoomBase] = [schemas.RoomBase.model_validate(row._asdict()) for row in result]
-            return rooms
+            # Get room_type_id by using the room_type
+            room_types: list[Row] = self._get_supported_room_types_with_id()
+            r_type_id: int = [row.id for row in room_types if row.room_type.lower() == room_type.lower()][0]
+            # Get state_id by using the room_state
+            room_states: list[Row] = self._get_supported_room_states_with_id()
+            state_id: int = [row.id for row in room_states if row.room_state.lower() == room_state.lower()][0]
+            # Update the room record
+            stmt = update(models.Room).where(models.Room.room_number == room_number).values(r_type_id=r_type_id, state_id=state_id)
+            self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
         except Exception as e:
             match e.__class__.__name__:
                 case "ValueError":
-                    raise ValueError(f"There are no rooms in the database.")
+                    raise ValueError(f"{room_number} doesn't exist in the database.")
                 case _:
-                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")            
-            
-
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                         

@@ -76,7 +76,7 @@ async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
          description= '''Returns the list of all employees from the database.
          If the database is empty, it returns HTTP 404.'''
          )
-async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
+async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
     employees: List[schemas.EmployeeOut]|None = crud.list_employees(db, skip, limit)
     if employees:
         return employees
@@ -180,18 +180,25 @@ async def delete_room(room_number: str, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 @api.get("/room/list/",
-        name="List Rooms",
-        response_model=List[schemas.RoomBase],
-        tags=["Room"],
-        description= '''Returns the list of rooms from the database that match the criteria specified in the payload.
-        If the database is empty, it returns HTTP 404.'''
-        )
-async def list_rooms(db: Session = Depends(get_db), room_type: str = None, room_state: str = None):
+    name="List Rooms",
+    response_model=List[schemas.RoomBase],
+    tags=["Room"],
+    description= '''Returns the list of rooms from the database that match the criteria specified in the payload.
+    If the database is empty, it returns HTTP 404.'''
+    )
+async def list_rooms(db: Session = Depends(get_db), skip: int = None, limit: int = None, \
+             room_number: str = None, room_type: str = None, room_state: str = None):
     """
     Retrieve the list of all rooms from the database.
 
     Parameters:
     - db (Session): The database session.
+    - skip (int, optional): The number of rooms to skip. Defaults to 0.
+    - limit (int, optional): The maximum number of rooms to retrieve. Defaults to 20.
+    - room_number (str, optional): The room number filter. Defaults to None. 
+                                    -   If room_number is None, it returns all rooms.
+                                    -   If room_number is a string, it returns all other optional parameters 
+                                        are ignored and the endpoint returns the room with the specified room number.
     - room_type (str, optional): The room type filter. Defaults to None.
     - room_state (str, optional): The room state filter. Defaults to None.
 
@@ -205,17 +212,14 @@ async def list_rooms(db: Session = Depends(get_db), room_type: str = None, room_
     """
     room: crud.Room = crud.Room(db)
     try:
-        rooms: List[schemas.RoomBase] = room.list_rooms(room_type, room_state)
-        if rooms:
-            return rooms
-        else:
-            raise HTTPException(status_code=404, detail="There are no rooms in the database.")
+        rooms: List[schemas.RoomBase] = room.list_rooms(skip, limit, room_number, room_type, room_state)
+        return rooms
     except Exception as e:
         match e.__class__.__name__:
             case "ValueError":
-                raise HTTPException(status_code=400, detail=str(e.__str__()))
+                    raise HTTPException(status_code=400, detail=str(e.__str__()))
             case _:
-                raise HTTPException(status_code=500, detail=str(e.__str__()))
+                    raise HTTPException(status_code=500, detail=str(e.__str__()))
             
 @api.get("/room_types/list",
          name="List Room Types",
@@ -232,7 +236,7 @@ async def list_room_types(db: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=404, detail="There are no room types in the database.")
 
-@api.get("/room_states/list",
+@api.get("/room_states/list/",
             name="List Room States",
             response_model=schemas.RoomStateBase,
             tags=["Room"],
@@ -303,6 +307,25 @@ async def add_room_state(payload: schemas.RoomTypeIn, db: Session = Depends(get_
                 raise HTTPException(status_code=400, detail=str(e.__str__()))
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+@api.put("/room/update/",
+            name="Update Room",
+            response_model=schemas.GenericMessage,
+            tags=["Room"],
+            description='''Updates the specified room.
+            If the room number doesn't exists, it returns HTTP 400.'''
+            )
+async def update_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+    room: crud.Room = crud.Room(db)
+    try:
+        result: schemas.GenericMessage = room.update_room(payload.room_number, payload.room_type, payload.room_state)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=400, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))   
 
 @api.put("/room_types/update/",
          name="Update Room Type",
