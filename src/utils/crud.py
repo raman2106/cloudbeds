@@ -739,3 +739,6 @@ class Room(RoomType, RoomState):
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                         
+
+class Customers:
+    pass
