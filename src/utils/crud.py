@@ -1,7 +1,7 @@
 from sqlalchemy.orm.session import Session
 from . import models, schemas, cloudbeds_exceptions
 from pydantic import EmailStr, SecretStr
-from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_
+from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, CursorResult
 from itertools import islice
 from typing import List, Dict
 import secrets, string
@@ -740,5 +740,61 @@ class Room(RoomType, RoomState):
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                         
 
-class Customers:
-    pass
+class Customer:
+    def __init__(self, db: Session):
+        self.db = db
+    # Add customer
+    def add_customer(self, customer: schemas.CustomerIn) -> schemas.CreateCustomerResult:
+            """
+            Adds a new customer to the database.
+
+            Args:
+                customer (schemas.CustomerIn): The customer data to be added.
+
+            Returns:
+                schemas.CustomerOut: The added customer data.
+
+            Raises:
+                cloudbeds_exceptions.DBError: If the database operation fails.
+            """
+            
+            try:
+                # Check wheteht the customer exists in DB. 
+                # Use cutomer's email or phone to check if the customer exists in the DB.
+                stmt = Select("*").where(
+                        or_(
+                            models.Customer.email == customer.cust_details.email,
+                            models.Customer.phone == customer.cust_details.phone
+                            )
+                        )
+                result: Row| None = self.db.execute(stmt).fetchone()
+                if result:
+                    raise ValueError()
+                
+                # Add the customer to the database
+                stmt: Insert = Insert(models.Customer).values(**customer.cust_details.model_dump())
+                customer_result: CursorResult = self.db.execute(stmt)
+                customer_id: int = customer_result.inserted_primary_key[0]
+
+                # Add the customer Address to teh DB
+                stmt:Insert = Insert(models.CustomerAddress).values(**customer.cust_address.model_dump(), customer_id=customer_id)
+                customer_address_result: CursorResult = self.db.execute(stmt)
+
+                # Commit the transaction
+                self.db.commit()
+
+                # Form the output payload
+                result: schemas.CreateCustomerResult = schemas.CreateCustomerResult(msg="success", customer_id=customer_id)
+                return result
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                match e.__class__.__name__:
+                    case "ValueError":
+                        raise ValueError(f"{customer.cust_details.email} or {customer.cust_details.phone} exists in the database.")
+                    case _:
+                        raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    # Edit customer
+    # List customers

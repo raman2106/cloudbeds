@@ -4,6 +4,34 @@ from pydantic import (
     EmailStr
 )
 
+class CustomerBase(BaseModel):
+    first_name: str
+    middle_name: str | None
+    last_name: str
+    email: EmailStr
+    phone: str
+
+class CustomerAddressBase(BaseModel):
+    first_line: str
+    second_line: str|None
+    landmark: str|None
+    district: str
+    state: str
+    pin: str
+    address_type: str
+
+class CreateCustomerResult(BaseModel):
+    msg: str
+    customer_id: int
+
+class CustomerIn(BaseModel):
+    cust_details: CustomerBase
+    cust_address: CustomerAddressBase
+
+class CustomerOut(BaseModel):
+    customer_id: int
+    cust_details: CustomerBase
+    cust_address: CustomerAddressBase
 
 class EmployeeBase(BaseModel):
     first_name: str 

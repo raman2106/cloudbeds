@@ -370,9 +370,27 @@ async def update_room_state(room_state: str, new_room_state: str, db: Session = 
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 #=============================
-# Front-desk Manager endpoints
+# Customer endpoints
 #=============================
-
+@api.post("/cust/add/",
+          name="Add Customer",
+          response_model=schemas.CreateCustomerResult,
+          tags=["Customer"],
+          description='''Creates a customer record in the database.
+          If the provided email exists in the database, returns HTTP 404.''')
+async def add_customer(payload: schemas.CustomerIn, db: Session = Depends(get_db)):
+    customer: crud.Customer = crud.Customer(db)
+    try:
+        result: schemas.CreateCustomerResult = customer.add_customer(payload)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=400, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 if __name__ == "__main__":
     # USed to run the code in debug mode.
