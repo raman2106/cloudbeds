@@ -6,6 +6,7 @@ from itertools import islice
 from typing import List, Dict
 import secrets, string
 from werkzeug.security import generate_password_hash
+import traceback
 
 def generate_password(length=10) -> str:
     '''
@@ -18,8 +19,8 @@ def generate_password(length=10) -> str:
 def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     '''Builds the EmployeeOut payload'''
     emp_id: int = result.emp_id
-    emp_details: dict(str,str) = dict(islice(result._asdict().items(), 1, 7))
-    emp_address: dict(str,str) = dict(islice(result._asdict().items(), 7, len(result._asdict())))
+    emp_details: dict[str,str] = dict(islice(result._asdict().items(), 1, 7))
+    emp_address: dict[str,str] = dict(islice(result._asdict().items(), 7, len(result._asdict())))
     # Create an instance of the EmployeeOut class
     employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
     return employee
@@ -743,6 +744,25 @@ class Room(RoomType, RoomState):
 class Customer:
     def __init__(self, db: Session):
         self.db = db
+
+    def __build_customer_out_payload(self, result:Row)->schemas.CustomerOut:
+        '''Builds the CustomerOut payload'''
+        # The result object is a rwo that contains an instance of the customer table with just on record.
+        customer_data: dict[str, str] = result.Customer.__dict__
+        # Remove unnecessary attributes from the customer data
+        customer_data = dict(islice(customer_data.items(), 1, len(customer_data.items())))
+        customer_id: int = customer_data.pop("customer_id")
+
+        # Use the backref to get the customer's address
+        customer_address: dict[str, str] = result.Customer.addresses[0].__dict__
+        # Remove unnecessary attributes from the customer address
+        customer_address = dict(islice(customer_address.items(), 1, len(customer_address.items())))
+        del customer_address["customer_id"]
+
+        # Build the CustomerOut payload
+        result: schemas.CustomerOut = schemas.CustomerOut(customer_id=customer_id, cust_details=customer_data, cust_address=customer_address)
+        return result
+
     # Add customer
     def add_customer(self, customer: schemas.CustomerIn) -> schemas.CreateCustomerResult:
             """
@@ -788,13 +808,51 @@ class Customer:
                 return result
 
             except Exception as e:
-                import traceback
                 traceback.print_exc()
                 match e.__class__.__name__:
                     case "ValueError":
                         raise ValueError(f"{customer.cust_details.email} or {customer.cust_details.phone} exists in the database.")
                     case _:
                         raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    # Get customer
+    def get_customer(self, query_string: str) -> schemas.CustomerOut:
+        """
+        Returns the details of a customer.
+
+        Args:
+            phone (str): Phone number of the customer.
+            email (str): Email iD of the customer
+
+        Returns:
+            schemas.CustomerOut: The customer data.
+
+        Raises:
+            ValueError: If the customer doesn't exist in the database.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        """
+        try:
+            # Check if the customer exists in the DB.
+            stmt: Select = Select(models.Customer).where(
+                or_(
+                    models.Customer.phone == query_string,
+                    models.Customer.email == query_string
+                )
+            )
+            result: Row|None = self.db.execute(stmt).fetchone()
+            
+            if result == None:
+                raise ValueError()
+            
+            # Build return payload
+            result: schemas.CustomerOut = self.__build_customer_out_payload(result)
+            return result
+
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case _:
+                    raise ValueError("Customer doesn't exists in the database.")
 
     # Edit customer
     # List customers

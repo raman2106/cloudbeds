@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 #Used in Test endpoints
 from pydantic import EmailStr
 import uvicorn
+import traceback
 
 #from datetime import date
 
@@ -384,11 +385,30 @@ async def add_customer(payload: schemas.CustomerIn, db: Session = Depends(get_db
         result: schemas.CreateCustomerResult = customer.add_customer(payload)
         return result
     except Exception as e:
-        import traceback
         traceback.print_exc()
         match e.__class__.__name__:
             case "ValueError":
                 raise HTTPException(status_code=400, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+@api.get("/cust/{query}/",
+         name="Get customer",
+         response_model=schemas.CustomerOut,
+         tags=["Customer"],
+         description= '''Returns the customers from the database.
+         If the customer isn't available in the databse, it returns HTTP 404.'''
+         )
+async def get_customers(query: str, db: Session = Depends(get_db)):
+    customer: crud.Customer = crud.Customer(db)
+    try:
+        customers: schemas.CustomerOut = customer.get_customer(query)
+        return customers
+    except Exception as e:
+        traceback.print_exc()
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
