@@ -61,7 +61,7 @@ async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db
          If employee isn't found in the database, it returns HTTP 404.'''
          )
 async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
-    employee: schemas.Employee|None = crud.get_employee(id, db)
+    employee: schemas.EmployeeOut|None = crud.get_employee(id, db)
     if employee:
         return employee
     else:

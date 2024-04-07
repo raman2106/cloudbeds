@@ -18,46 +18,85 @@ def generate_password(length=10) -> str:
 
 def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     '''Builds the EmployeeOut payload'''
-    emp_id: int = result.emp_id
-    emp_details: dict[str,str] = dict(islice(result._asdict().items(), 1, 7))
-    emp_address: dict[str,str] = dict(islice(result._asdict().items(), 7, len(result._asdict())))
-    # Create an instance of the EmployeeOut class
-    employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
+    employee_data: dict[str, str] = result.Employee.__dict__
+    employee_data = dict(islice(employee_data.items(), 1, len(employee_data.items())))
+    emp_id: int = employee_data.pop("emp_id")
+    # We don't want to expose the password hash through this method
+    del employee_data["password_hash"]
+    # EmployeeOut payload doesn't accept the following attributes: current_login_at, current_login_ip, last_login_at, last_login_ip, login_count
+    del employee_data["current_login_at"]
+    del employee_data["current_login_ip"]
+    del employee_data["last_login_at"]
+    del employee_data["last_login_ip"]
+    del employee_data["login_count"]
+
+    # Use the backref to get the employee's address
+    employee_address: dict[str, str] = result.Employee.addresses[0].__dict__
+    employee_address = dict(islice(employee_address.items(), 1, len(employee_address.items())))
+    # Remove unnecessary attributes from the employee address
+    del employee_address["emp_id"]
+    del employee_address["address_id"]
+    
+    # Generate the EmployeeOut payload
+    employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=employee_data, emp_address=employee_address)
     return employee
 
-def get_employee(id: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
+    # emp_id: int = result.emp_id
+    # emp_details: dict[str,str] = dict(islice(result._asdict().items(), 1, 7))
+    # emp_address: dict[str,str] = dict(islice(result._asdict().items(), 7, len(result._asdict())))
+    # # Create an instance of the EmployeeOut class
+    # employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
+    # return employee
+
+def get_employee(query_value: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
     '''
     Returns the details of an employee. If Employee isn't found in the database, it returns None.
     Args:
         * id: Employee ID (int) or Employee email (EmailString)
         * db: SQL Alchemy session object
     '''
-    stmt = select(models.Employee.emp_id, 
-            models.Employee.first_name,
-            models.Employee.middle_name,
-            models.Employee.last_name,
-            models.Employee.phone,
-            models.Employee.email,
-            models.Employee.is_active,
-            models.EmployeeAddress.address_type,
-            models.EmployeeAddress.first_line,
-            models.EmployeeAddress.second_line,
-            models.EmployeeAddress.landmark,
-            models.EmployeeAddress.district,
-            models.EmployeeAddress.state,
-            models.EmployeeAddress.pin).    \
-        select_from(models.Employee).   \
-        join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id).\
-         where(or_(models.Employee.emp_id == id, models.Employee.email == id))
+    try:
+        if isinstance(query_value, int):
+            stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
+        elif isinstance(query_value, EmailStr):
+            stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
+        else:
+            raise ValueError("Invalid query value. It should be either an integer or an email string.")
+        result: Row|None = db.execute(stmt).fetchone()
+        if result:
+            employee: schemas.EmployeeOut = build_emp_out_payload(result)
+        else:
+            employee = None
+        return employee
     
-    result: Row|None = db.execute(stmt).fetchone()
+    except Exception as e:
+        raise ValueError(f"{e.__class__.__name__}: {e}")
+    # stmt = select(models.Employee.emp_id, 
+    #         models.Employee.first_name,
+    #         models.Employee.middle_name,
+    #         models.Employee.last_name,
+    #         models.Employee.phone,
+    #         models.Employee.email,
+    #         models.Employee.is_active,
+    #         models.EmployeeAddress.address_type,
+    #         models.EmployeeAddress.first_line,
+    #         models.EmployeeAddress.second_line,
+    #         models.EmployeeAddress.landmark,
+    #         models.EmployeeAddress.district,
+    #         models.EmployeeAddress.state,
+    #         models.EmployeeAddress.pin).    \
+    #     select_from(models.Employee).   \
+    #     join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id).\
+    #      where(or_(models.Employee.emp_id == id, models.Employee.email == id))
+    
+    # result: Row|None = db.execute(stmt).fetchone()
 
-    if result:
-        employee: schemas.EmployeeOut = build_emp_out_payload(result)
-    else:
-        employee = None
+    # if result:
+    #     employee: schemas.EmployeeOut = build_emp_out_payload(result)
+    # else:
+    #     employee = None
 
-    return employee
+    # return employee
 
 def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.EmployeeOut]|None:
     '''
@@ -740,7 +779,6 @@ class Room(RoomType, RoomState):
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                         
-
 class Customer:
     def __init__(self, db: Session):
         self.db = db
@@ -818,18 +856,17 @@ class Customer:
     # Get customer
     def get_customer(self, query_string: str) -> schemas.CustomerOut:
         """
-        Returns the details of a customer.
+        Retrieves a customer from the database based on the provided query string.
 
         Args:
-            phone (str): Phone number of the customer.
-            email (str): Email iD of the customer
+            query_string (str): The query string to search for a customer. It can be either a phone number or an email.
 
         Returns:
-            schemas.CustomerOut: The customer data.
+            schemas.CustomerOut: The customer information as a `CustomerOut` object.
 
         Raises:
             ValueError: If the customer doesn't exist in the database.
-            cloudbeds_exceptions.DBError: If the database operation fails.
+
         """
         try:
             # Check if the customer exists in the DB.
@@ -840,10 +877,10 @@ class Customer:
                 )
             )
             result: Row|None = self.db.execute(stmt).fetchone()
-            
+
             if result == None:
                 raise ValueError()
-            
+
             # Build return payload
             result: schemas.CustomerOut = self.__build_customer_out_payload(result)
             return result
@@ -852,7 +889,7 @@ class Customer:
             traceback.print_exc()
             match e.__class__.__name__:
                 case _:
-                    raise ValueError("Customer doesn't exists in the database.")
+                    raise ValueError("Customer doesn't exist in the database.")
 
     # Edit customer
     # List customers
