@@ -25,13 +25,13 @@ class CreateCustomerResult(BaseModel):
     customer_id: int
 
 class CustomerIn(BaseModel):
-    cust_details: CustomerBase
-    cust_address: CustomerAddressBase
+    customer_details: CustomerBase
+    customer_address: CustomerAddressBase
 
 class CustomerOut(BaseModel):
     customer_id: int
-    cust_details: CustomerBase
-    cust_address: CustomerAddressBase
+    customer_details: CustomerBase
+    customer_address: CustomerAddressBase
 
 class EmployeeBase(BaseModel):
     first_name: str 

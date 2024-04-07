@@ -373,6 +373,26 @@ async def update_room_state(room_state: str, new_room_state: str, db: Session = 
 #=============================
 # Customer endpoints
 #=============================
+@api.get("/cust/",
+         name="Get customer",
+         response_model=schemas.CustomerOut,
+         tags=["Customer"],
+         description= '''Returns the details of a customer from the database based on the provided query, which can be either a phone number or an email.
+         If the customer isn't available in the database, it returns HTTP 404.'''
+         )
+async def get_customer(query: str, db: Session = Depends(get_db)):
+    customer: crud.Customer = crud.Customer(db)
+    try:
+        customers: schemas.CustomerOut = customer.get_customer(query)
+        return customers
+    except Exception as e:
+        traceback.print_exc()
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
+
 @api.post("/cust/add/",
           name="Add Customer",
           response_model=schemas.CreateCustomerResult,
@@ -392,17 +412,17 @@ async def add_customer(payload: schemas.CustomerIn, db: Session = Depends(get_db
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
-@api.get("/cust/{query}/",
-         name="Get customer",
-         response_model=schemas.CustomerOut,
+@api.get("/cust/list/",
+         name="List Customers",
+         response_model=List[schemas.CustomerOut],
          tags=["Customer"],
-         description= '''Returns the customers from the database.
-         If the customer isn't available in the databse, it returns HTTP 404.'''
+         description= '''Returns the list of all customers from the database.
+         If the database is empty, it returns HTTP 404.'''
          )
-async def get_customers(query: str, db: Session = Depends(get_db)):
+async def list_customers(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
     customer: crud.Customer = crud.Customer(db)
     try:
-        customers: schemas.CustomerOut = customer.get_customer(query)
+        customers: List[schemas.CustomerOut] = customer.list_customers(skip, limit)
         return customers
     except Exception as e:
         traceback.print_exc()
@@ -411,6 +431,27 @@ async def get_customers(query: str, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=404, detail=str(e.__str__()))
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+@api.post("/cust/update/",
+          name="Update Customer",
+          response_model=schemas.GenericMessage,
+          tags=["Customer"],
+          description='''Updates the details of the specified customer.
+          If the customer isn't found in the database, it returns HTTP 404.'''
+          )
+async def update_customer(payload: schemas.CustomerOut, db: Session = Depends(get_db)):
+    customer: crud.Customer = crud.Customer(db)
+    try:
+        result: schemas.GenericMessage = customer.update_customer(payload)
+        return result
+    except Exception as e:
+        traceback.print_exc()
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
+            
 
 if __name__ == "__main__":
     # USed to run the code in debug mode.
