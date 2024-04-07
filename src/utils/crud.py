@@ -1,11 +1,12 @@
 from sqlalchemy.orm.session import Session
 from . import models, schemas, cloudbeds_exceptions
 from pydantic import EmailStr, SecretStr
-from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_
+from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, CursorResult, Update
 from itertools import islice
 from typing import List, Dict
 import secrets, string
 from werkzeug.security import generate_password_hash
+import traceback
 
 def generate_password(length=10) -> str:
     '''
@@ -17,46 +18,52 @@ def generate_password(length=10) -> str:
 
 def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     '''Builds the EmployeeOut payload'''
-    emp_id: int = result.emp_id
-    emp_details: dict(str,str) = dict(islice(result._asdict().items(), 1, 7))
-    emp_address: dict(str,str) = dict(islice(result._asdict().items(), 7, len(result._asdict())))
-    # Create an instance of the EmployeeOut class
-    employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
+    employee_data: dict[str, str] = result.Employee.__dict__
+    employee_data = dict(islice(employee_data.items(), 1, len(employee_data.items())))
+    emp_id: int = employee_data.pop("emp_id")
+    # We don't want to expose the password hash through this method
+    del employee_data["password_hash"]
+    # EmployeeOut payload doesn't accept the following attributes: current_login_at, current_login_ip, last_login_at, last_login_ip, login_count
+    del employee_data["current_login_at"]
+    del employee_data["current_login_ip"]
+    del employee_data["last_login_at"]
+    del employee_data["last_login_ip"]
+    del employee_data["login_count"]
+
+    # Use the backref to get the employee's address
+    employee_address: dict[str, str] = result.Employee.addresses[0].__dict__
+    employee_address = dict(islice(employee_address.items(), 1, len(employee_address.items())))
+    # Remove unnecessary attributes from the employee address
+    del employee_address["emp_id"]
+    del employee_address["address_id"]
+    
+    # Generate the EmployeeOut payload
+    employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=employee_data, emp_address=employee_address)
     return employee
 
-def get_employee(id: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
+def get_employee(query_value: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
     '''
     Returns the details of an employee. If Employee isn't found in the database, it returns None.
     Args:
         * id: Employee ID (int) or Employee email (EmailString)
         * db: SQL Alchemy session object
     '''
-    stmt = select(models.Employee.emp_id, 
-            models.Employee.first_name,
-            models.Employee.middle_name,
-            models.Employee.last_name,
-            models.Employee.phone,
-            models.Employee.email,
-            models.Employee.is_active,
-            models.EmployeeAddress.address_type,
-            models.EmployeeAddress.first_line,
-            models.EmployeeAddress.second_line,
-            models.EmployeeAddress.landmark,
-            models.EmployeeAddress.district,
-            models.EmployeeAddress.state,
-            models.EmployeeAddress.pin).    \
-        select_from(models.Employee).   \
-        join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id).\
-         where(or_(models.Employee.emp_id == id, models.Employee.email == id))
+    try:
+        if isinstance(query_value, int):
+            stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
+        elif isinstance(query_value, EmailStr):
+            stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
+        else:
+            raise ValueError("Invalid query value. It should be either an integer or an email string.")
+        result: Row|None = db.execute(stmt).fetchone()
+        if result:
+            employee: schemas.EmployeeOut = build_emp_out_payload(result)
+        else:
+            employee = None
+        return employee
     
-    result: Row|None = db.execute(stmt).fetchone()
-
-    if result:
-        employee: schemas.EmployeeOut = build_emp_out_payload(result)
-    else:
-        employee = None
-
-    return employee
+    except Exception as e:
+        raise ValueError(f"{e.__class__.__name__}: {e}")
 
 def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.EmployeeOut]|None:
     '''
@@ -152,7 +159,6 @@ def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.Manage
     employee: Row = db.execute(stmt).fetchone()
     result: schemas.ManageEmployeeOut = schemas.ManageEmployeeOut.model_validate(employee._asdict())
     return result
-
 
 class RoomType():
     def __init__(self, db: Session):
@@ -739,6 +745,187 @@ class Room(RoomType, RoomState):
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                         
+class Customer:
+    def __init__(self, db: Session):
+        self.db = db
 
-class Customers:
-    pass
+    def __build_customer_out_payload(self, result:Row)->schemas.CustomerOut:
+        '''Builds the CustomerOut payload'''
+        # The result object is a rwo that contains an instance of the customer table with just on record.
+        customer_data: dict[str, str] = result.Customer.__dict__
+        # Remove unnecessary attributes from the customer data
+        customer_data = dict(islice(customer_data.items(), 1, len(customer_data.items())))
+        customer_id: int = customer_data.pop("customer_id")
+
+        # Use the backref to get the customer's address
+        customer_address: dict[str, str] = result.Customer.addresses[0].__dict__
+        # Remove unnecessary attributes from the customer address
+        customer_address = dict(islice(customer_address.items(), 1, len(customer_address.items())))
+        del customer_address["customer_id"]
+
+        # Build the CustomerOut payload
+        result: schemas.CustomerOut = schemas.CustomerOut(customer_id=customer_id, customer_details=customer_data, customer_address=customer_address)
+        return result
+
+    # Add customer
+    def add_customer(self, customer: schemas.CustomerIn) -> schemas.CreateCustomerResult:
+            """
+            Adds a new customer to the database.
+
+            Args:
+                customer (schemas.CustomerIn): The customer data to be added.
+
+            Returns:
+                schemas.CustomerOut: The added customer data.
+
+            Raises:
+                cloudbeds_exceptions.DBError: If the database operation fails.
+            """
+            
+            try:
+                # Check wheteht the customer exists in DB. 
+                # Use cutomer's email or phone to check if the customer exists in the DB.
+                stmt = Select("*").where(
+                        or_(
+                            models.Customer.email == customer.customer_details.email,
+                            models.Customer.phone == customer.customer_details.phone
+                            )
+                        )
+                result: Row| None = self.db.execute(stmt).fetchone()
+                if result:
+                    raise ValueError()
+                
+                # Add the customer to the database
+                stmt: Insert = Insert(models.Customer).values(**customer.customer_details.model_dump())
+                customer_result: CursorResult = self.db.execute(stmt)
+                customer_id: int = customer_result.inserted_primary_key[0]
+
+                # Add the customer Address to teh DB
+                stmt:Insert = Insert(models.CustomerAddress).values(**customer.customer_address.model_dump(), customer_id=customer_id)
+                customer_address_result: CursorResult = self.db.execute(stmt)
+
+                # Commit the transaction
+                self.db.commit()
+
+                # Form the output payload
+                result: schemas.CreateCustomerResult = schemas.CreateCustomerResult(msg="success", customer_id=customer_id)
+                return result
+
+            except Exception as e:
+                traceback.print_exc()
+                match e.__class__.__name__:
+                    case "ValueError":
+                        raise ValueError(f"{customer.customer_details.email} or {customer.customer_details.phone} exists in the database.")
+                    case _:
+                        raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    # Get customer
+    def get_customer(self, query_string: str) -> schemas.CustomerOut:
+        """
+        Retrieves a customer from the database based on the provided query string.
+
+        Args:
+            query_string (str): The query string to search for a customer. It can be either a phone number or an email.
+
+        Returns:
+            schemas.CustomerOut: The customer information as a `CustomerOut` object.
+
+        Raises:
+            ValueError: If the customer doesn't exist in the database.
+
+        """
+        try:
+            # Check if the customer exists in the DB.
+            stmt: Select = Select(models.Customer).where(
+                or_(
+                    models.Customer.phone == query_string,
+                    models.Customer.email == query_string
+                )
+            )
+            result: Row|None = self.db.execute(stmt).fetchone()
+
+            if result == None:
+                raise ValueError()
+
+            # Build return payload
+            result: schemas.CustomerOut = self.__build_customer_out_payload(result)
+            return result
+
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case _:
+                    raise ValueError("Customer doesn't exist in the database.")
+
+    # List customers
+    def list_customers(self, skip: int, limit: int) -> List[schemas.CustomerOut]:
+        """
+        Retrieves a list of customers from the database.
+
+        Args:
+            skip (int): The number of records to skip.
+            limit (int): The maximum number of records to return.
+
+        Returns:
+            List[schemas.CustomerOut]: A list of customers.
+
+        """
+        try:
+            # Get the list of customers
+            stmt: Select = Select(models.Customer).limit(limit).offset(skip)
+            result: List[Row] = self.db.execute(stmt).fetchall()
+
+            # Build the return payload
+            customers: List[schemas.CustomerOut] = [self.__build_customer_out_payload(row) for row in result]
+            return customers
+
+        except Exception as e:
+            traceback.print_exc()
+            raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+    
+    # Update customer
+    def update_customer(self, payload: schemas.CustomerOut) -> schemas.GenericMessage:
+        """
+        Updates a customer in the database.
+
+        Args:
+            payload (schemas.CustomerOut): The customer data to be updated.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            ValueError: If the customer doesn't exist in the database.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        """
+        try:
+            # Check if the customer exists in the DB.
+            stmt: Select = Select(models.Customer).where(models.Customer.customer_id == payload.customer_id)
+            result: Row|None = self.db.execute(stmt).fetchone()
+            if result == None:
+                raise ValueError()
+
+            # Update the customer data
+            stmt: Update = Update(models.Customer). \
+                where(models.Customer.customer_id == payload.customer_id).  \
+                values(**payload.customer_details.model_dump())
+            self.db.execute(stmt)
+
+            # Update the customer address
+            stmt: Update = Update(models.CustomerAddress).  \
+                where(models.CustomerAddress.customer_id == payload.customer_id).   \
+                values(**payload.customer_address.model_dump())
+            self.db.execute(stmt)
+
+            # Commit the transaction
+            self.db.commit()
+
+            return {"msg":"Success"}
+
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError("Customer doesn't exist in the database.")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")

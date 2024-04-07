@@ -1,9 +1,50 @@
+# Cloudbeds creation DDL:../../create-tables-1.sql
 from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, and_
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+from .database import Base
 
+class Customer(Base):
+    __tablename__ = "Customers"        
+    customer_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    first_name: Mapped[str] = mapped_column(String(20), nullable=False)
+    middle_name: Mapped[str] = mapped_column(String(20), nullable=True)
+    last_name: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+#    address_id: Mapped[int] = mapped_column(Integer, ForeignKey("EmployeeAddresses.address_id"), nullable=False)
+    
+    # Define the relationship to the EmployeeAddress model
+    addresses: Mapped[list["CustomerAddress"]] = relationship("CustomerAddress", back_populates="customer")
+
+class CustomerAddress(Base):
+    __tablename__ = "CustomerAddresses"
+    address_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    address_type: Mapped[str] = mapped_column(String(20))
+    first_line: Mapped[str] = mapped_column(String(30), nullable=False)
+    second_line: Mapped[str] = mapped_column(String(30), nullable=False)
+    landmark: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    district: Mapped[str] = mapped_column(String(30), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)
+    pin: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    # Foreign keys
+    customer_id: Mapped[int] = mapped_column(Integer, ForeignKey("Customers.customer_id"))
+
+    # Define the back-reference to the Employee model
+    customer: Mapped[Customer] = relationship('Customer', back_populates='addresses')    
+
+    # Constraint to check the address type
+    __table_args__ = (
+        CheckConstraint(
+            address_type.in_(['Correspondence', 'Permanent']),
+            name='chk_address_type'
+        ),
+    )    
 
 class Employee(Base):
     __tablename__ = "Employees"
@@ -41,7 +82,6 @@ class EmployeeAddress(Base):
 
     # Foreign keys
     emp_id: Mapped[int] = mapped_column(Integer, ForeignKey("Employees.emp_id"))
-    #address_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("AddressTypes.address_type_id"))    
 
     first_line: Mapped[str] = mapped_column(String(60))
     second_line: Mapped[Optional[str]] = mapped_column(String(60))
@@ -89,4 +129,3 @@ class Room(Base):
     # Define the back-reference to the RoomType and RoomState models
     room_type: Mapped[RoomType] = relationship('RoomType', back_populates='rooms', foreign_keys=[r_type_id])
     room_state: Mapped[RoomState] = relationship('RoomState', back_populates='rooms', foreign_keys=[state_id])
-
