@@ -41,13 +41,6 @@ def build_emp_out_payload(result:Row)->schemas.EmployeeOut:
     employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=employee_data, emp_address=employee_address)
     return employee
 
-    # emp_id: int = result.emp_id
-    # emp_details: dict[str,str] = dict(islice(result._asdict().items(), 1, 7))
-    # emp_address: dict[str,str] = dict(islice(result._asdict().items(), 7, len(result._asdict())))
-    # # Create an instance of the EmployeeOut class
-    # employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=emp_details, emp_address=emp_address)
-    # return employee
-
 def get_employee(query_value: int|EmailStr, db: Session) -> schemas.EmployeeOut|None:
     '''
     Returns the details of an employee. If Employee isn't found in the database, it returns None.
@@ -71,32 +64,6 @@ def get_employee(query_value: int|EmailStr, db: Session) -> schemas.EmployeeOut|
     
     except Exception as e:
         raise ValueError(f"{e.__class__.__name__}: {e}")
-    # stmt = select(models.Employee.emp_id, 
-    #         models.Employee.first_name,
-    #         models.Employee.middle_name,
-    #         models.Employee.last_name,
-    #         models.Employee.phone,
-    #         models.Employee.email,
-    #         models.Employee.is_active,
-    #         models.EmployeeAddress.address_type,
-    #         models.EmployeeAddress.first_line,
-    #         models.EmployeeAddress.second_line,
-    #         models.EmployeeAddress.landmark,
-    #         models.EmployeeAddress.district,
-    #         models.EmployeeAddress.state,
-    #         models.EmployeeAddress.pin).    \
-    #     select_from(models.Employee).   \
-    #     join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id).\
-    #      where(or_(models.Employee.emp_id == id, models.Employee.email == id))
-    
-    # result: Row|None = db.execute(stmt).fetchone()
-
-    # if result:
-    #     employee: schemas.EmployeeOut = build_emp_out_payload(result)
-    # else:
-    #     employee = None
-
-    # return employee
 
 def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.EmployeeOut]|None:
     '''
@@ -192,7 +159,6 @@ def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.Manage
     employee: Row = db.execute(stmt).fetchone()
     result: schemas.ManageEmployeeOut = schemas.ManageEmployeeOut.model_validate(employee._asdict())
     return result
-
 
 class RoomType():
     def __init__(self, db: Session):
