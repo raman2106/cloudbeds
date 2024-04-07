@@ -17,8 +17,6 @@ models.Base.metadata.create_all(bind=engine)
 
 api = FastAPI(title="CloudBeds API", version="1.0.0" )
 
-
-
 # Dependency
 def get_db():
     db = SessionLocal()
@@ -26,8 +24,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
 
 #==========================
 # Admin endpoints

@@ -45,13 +45,13 @@ def get_employee(query_value: int|EmailStr, db: Session) -> schemas.EmployeeOut|
     '''
     Returns the details of an employee. If Employee isn't found in the database, it returns None.
     Args:
-        * id: Employee ID (int) or Employee email (EmailString)
+        * query_value: Employee ID (int) or Employee email (EmailString)
         * db: SQL Alchemy session object
     '''
     try:
         if isinstance(query_value, int):
             stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
-        elif isinstance(query_value, EmailStr):
+        elif EmailStr._validate(query_value):
             stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
         else:
             raise ValueError("Invalid query value. It should be either an integer or an email string.")
@@ -74,31 +74,22 @@ def list_employees(db: Session, skip: int = 0, limit: int = 10) -> List[schemas.
         * skip: (int) Starting record number
         * limit: (int) End record number
     '''
-    stmt = select(models.Employee.emp_id, 
-            models.Employee.first_name,
-            models.Employee.middle_name,
-            models.Employee.last_name,
-            models.Employee.phone,
-            models.Employee.email,
-            models.Employee.is_active,
-            models.EmployeeAddress.address_type,
-            models.EmployeeAddress.first_line,
-            models.EmployeeAddress.second_line,
-            models.EmployeeAddress.landmark,
-            models.EmployeeAddress.district,
-            models.EmployeeAddress.state,
-            models.EmployeeAddress.pin).    \
-        select_from(models.Employee).   \
-        join(models.EmployeeAddress, models.Employee.emp_id == models.EmployeeAddress.emp_id). \
-        limit(limit).offset(skip)
-    
-    result: List[Row]|None = db.execute(stmt).fetchall()
-    if result:
-        employees:List[schemas.EmployeeOut] = []
-        for employee in result:
-            employees.append(build_emp_out_payload(employee))
+    try:
+        stmt: Select = Select(models.Employee).limit(limit).offset(skip)
+        result: List[Row]|None = db.execute(stmt).fetchall()
+        # If there are no employee records in the database, raise an error.
+        if result == None:
+            raise ValueError("No employee records found in the database.")
+        # Build the EmployeeOut payload 
+        employees:List[schemas.EmployeeOut] = [build_emp_out_payload(employee) for employee in result]
         return employees
-    return None
+    except Exception as e:
+        traceback(traceback.print_exc())
+        match e.__class__.__name__:
+            case "ValueError":
+                raise ValueError(f"{e.__class__.__name__}: {e}")
+            case _:
+                raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
 def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.EmployeePasswordOut:
     '''
