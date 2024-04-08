@@ -1,8 +1,10 @@
 # Fro more info on string constraint validator, see https://docs.pydantic.dev/latest/concepts/models/
 from pydantic import (
     BaseModel,
-    EmailStr
+    EmailStr,
+    blob
 )
+from datetime import datetime, date
 
 class CustomerBase(BaseModel):
     first_name: str
@@ -87,3 +89,27 @@ class RoomBase(BaseModel):
 class ListRooms(BaseModel):
     room_type: str | None = None
     room_state: str | None = None
+
+class BookingBase(BaseModel):
+    booked_on: datetime = datetime.now()
+    checkin: date
+    checkout: date
+    government_id_type: str
+    government_id: str
+    exp_date: str | None
+    govt_id_image: bytes
+    room_type: str
+    room_num: int | None
+    comments: str | None
+
+class BookingIn(BaseModel):
+    customer_details: CustomerIn
+    booking_details: BookingBase
+
+class BookingOut(BaseModel):
+    booking_id: int
+    customer_details: CustomerOut
+    booking_details: BookingBase
+
+class GovtIdTypeIn(BaseModel):
+    id_name: str

@@ -7,6 +7,8 @@ from typing import List, Dict
 import secrets, string
 from werkzeug.security import generate_password_hash
 import traceback
+from datetime import datetime, date
+from dateutil import tz
 
 def generate_password(length=10) -> str:
     '''
@@ -920,3 +922,92 @@ class Customer:
                     raise ValueError("Customer doesn't exist in the database.")
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+                
+class Booking:
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def __validate_booking_payload(self, payload: schemas.BookingIn) -> bool:
+        '''
+        Validates the booking payload.
+        It performs the following checks:
+        * Validates the booking dates:
+            - Are the booking_start and booking_end dates ahead of the booked_on date? 
+            - Is the booking_start < booking_end?
+        * Validates the supplied Govt_id_type
+        * Validates the expiry date of the supplied govt_id
+        * Checks whether the requested room_type is available for the booking dates.
+
+        Args:
+            payload: (schemas.BookingIn) The booking payload to be validated.
+        
+        Returns:
+            bool: True if the payload is valid.
+        
+        Raises:
+            ValueError: If the payload is invalid.
+            CloudBedsError: If the operation fails due to an unknown error.
+        '''
+        # Check if the booking_start and booking_end dates are ahead of the booked_on date.
+        booked_on: date = datetime.strptime(payload.booking_details.booked_on, "%Y-%m-%d").date()
+        checkin: date = date(payload.booking_details.checkin)
+        checkout: date = date(payload.booking_details.checkout)
+        if booked_on < checkin or booked_on < checkout:
+            # Get system's local timezone
+            local_timezone = tz.tzlocal()
+            raise ValueError(f"The booking dates should be ahead of the booked on date ({booked_on.replace(tzinfo=local_timezone)}).")
+        if checkin > checkout:
+            raise ValueError("The booking start date should be ahead of the booking end date.")
+
+    def __validate_govt_id(self, payload: schemas.BookingIn) -> Bool:
+        '''
+        Validates the govt_id and govt_id_expiry_date in the booking payload.
+
+        Args:
+            payload: (schemas.BookingIn) The booking payload to be validated.
+
+        Returns:
+            bool: True if the payload is valid.
+
+        Raises:
+            ValueError: If the payload is invalid.
+            CloudBedsError: If the operation fails due to an unknown error.
+        '''
+        # Check if the supplied govt_id_type is valid
+
+        # Check if the govt_id_expiry_date is ahead of the booking_start date
+        pass
+
+    def add_supported_govt_id_type(self, payload: schemas.GovtIdTypeIn) -> schemas.GenericMessage:
+        '''
+        Adds a supported government ID type to the database.
+
+        Args:
+            payload: (schemas.GovtIdTypeIn) The government ID type to be added.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            ValueError: If the govt_id_type already exists in the database.
+            CloudBedsError: If the operation fails due to an unknown error.
+        '''
+        try:
+            # Check if the supplied govt_id_type is available in DB. If yes, raise ValueError
+            stmt = Select(models.GovtIdType.govt_id_type).where(models.GovtIdType.govt_id_type == payload.govt_id_type)
+            result: Row = self.db.execute(stmt).fetchone()
+            if result:
+                raise ValueError
+            stmt =  Insert(models.GovtIdType).values(govt_id_type=payload.govt_id_type)
+            self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
+        except Exception as e:
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(f"{payload.govt_id_type} exists in the database.")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    def add_booking(self, payload):
+        is_payload_valid: bool = self.__validate_booking_payload(payload)

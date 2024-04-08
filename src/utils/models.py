@@ -1,5 +1,5 @@
 # Cloudbeds creation DDL:../../create-tables-1.sql
-from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, and_
+from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, Date
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
@@ -16,7 +16,6 @@ class Customer(Base):
     last_name: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-#    address_id: Mapped[int] = mapped_column(Integer, ForeignKey("EmployeeAddresses.address_id"), nullable=False)
     
     # Define the relationship to the EmployeeAddress model
     addresses: Mapped[list["CustomerAddress"]] = relationship("CustomerAddress", back_populates="customer")
@@ -101,6 +100,41 @@ class EmployeeAddress(Base):
             name='chk_address_type'
         ),
     )
+
+class Booking(Base):
+    __tablename__ = "Bookings"
+    booking_id: Mapped[str] = mapped_column(String(20), primary_key=True, nullable=True)
+    booked_on: Mapped[DateTime] = mapped_column(DateTime, nullable=False)
+    checkin: Mapped[Date] = mapped_column(Date, nullable=False)
+    checkout: Mapped[Date] = mapped_column(Date, nullable=False)
+    
+    # Foreign keys
+    booking_status_id: Mapped[int] = mapped_column(Integer, ForeignKey("BookingStatuses.id"), nullable=False, default=1)
+    # Resume from here...
+    customer_id: Mapped[int] = mapped_column(Integer, ForeignKey("Customers.customer_id"), nullable=False)
+    room_id: Mapped[int] = mapped_column(Integer, ForeignKey("Rooms.room_id"))
+    govt_id_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("GovtIdTypes.id"))
+    govt_id_number: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Define the back-reference to the Customer model
+    customer: Mapped[Customer] = relationship('Customer')
+
+    # Define the back-reference to the Room model
+    room: Mapped[Room] = relationship('Room')
+
+    # Define the back-reference to the GovtIdType model
+    govt_id_type: Mapped[GovtIdType] = relationship('GovtIdType')
+
+    # Define the back-reference to the CustomerGovtId model
+    customer_govt_id: Mapped[list["CustomerGovtId"]] = relationship("CustomerGovtId", back_populates="booking")
+
+class GovtIdType(Base):
+    __tablename__ = "GovtIdTypes"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    id_name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Attributes used in relationships
+    customers: Mapped[list["Booking"]] = relationship("CustomerGovtId", back_populates="govt_id_type")
 
 class RoomType(Base):
     __tablename__ = "RoomTypes"
