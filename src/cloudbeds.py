@@ -112,6 +112,44 @@ async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
 
+#=============================
+# Government ID endpoints
+#=============================
+# Add a supported government ID endpoint
+@api.post("/gov_id/add/",
+            name="Add Government ID",
+            response_model=schemas.GenericMessage,
+            tags=["Government ID"],
+            description='''Adds a new government ID type to the database.
+            If the government ID type already exists, it returns HTTP 400.''')
+async def add_gov_id(payload: schemas.GovtIdTypeBase , db: Session = Depends(get_db)):
+    Booking: crud.Booking = crud.Booking(db)
+    try:
+        result: schemas.GenericMessage = Booking.add_supported_govt_id_type(payload)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=400, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+# List supported government IDs
+@api.get("/gov_id/list/",
+            name="List Government IDs",
+            response_model=list[schemas.GovtIdTypeBase],
+            tags=["Government ID"],
+            description= '''Returns the list of all supported government IDs from the database.
+            If the database is empty, it returns HTTP 404.'''
+            )
+async def list_gov_id(db: Session = Depends(get_db)):
+    try:
+        Booking: crud.Booking = crud.Booking(db)
+        govt_ids: list[schemas.GovtIdTypeBase] = Booking.get_supported_govt_id_types()
+        return govt_ids
+    except Exception as e:
+            raise HTTPException(status_code=404, detail=e.__str__())
+    
 
 #=============================
 # Booking endpoints
