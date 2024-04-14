@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 from fastapi import FastAPI, Depends, HTTPException
 from typing import List
@@ -161,8 +162,17 @@ async def list_gov_id(db: Session = Depends(get_db)):
             tags=["Booking"],
             description='''Creates a booking record in the database.
             If a booking fails, returns HTTP 500.''')
-def add_booking():
-    pass
+def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
+        booking: crud.Booking = crud.Booking(db)
+        try:
+            result: schemas.BookingResult = booking.add_booking(payload)
+            return result
+        except Exception as e:
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise HTTPException(status_code=400, detail=str(e.__str__()))
+                case _:
+                    raise HTTPException(status_code=500, detail=str(e.__str__()))
 # Get booking
 
 # List bookings

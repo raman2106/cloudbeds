@@ -1,9 +1,31 @@
 # Fro more info on string constraint validator, see https://docs.pydantic.dev/latest/concepts/models/
+from fastapi import UploadFile
+from typing import Optional
 from pydantic import (
     BaseModel,
-    EmailStr
+    EmailStr,
+    Field
 )
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+from dateutil import tz
+from enum import Enum
+
+class AddressType(str, Enum):
+    Permanent = "Permanent"
+    Correspondence = "Correspondence"
+
+class GovtIdtype(str, Enum):
+    Aadhar = "AADHAR"
+    PAN = "PAN"
+    VoterID = "Voter ID"
+    Passport = "Passport"
+    DrivingLicense = "Driving License"
+
+class RoomType(str, Enum):
+    standard = "Standard"
+    deluxe = "Deluxe"
+    club = "Club"
+    suite = "Suite"
 
 class CustomerBase(BaseModel):
     first_name: str
@@ -19,7 +41,7 @@ class CustomerAddressBase(BaseModel):
     district: str
     state: str
     pin: str
-    address_type: str
+    address_type: AddressType = Field(..., pattern='^(Permanent|Correspondence)$')
 
 class CreateCustomerResult(BaseModel):
     msg: str
@@ -49,7 +71,8 @@ class EmployeeAddressBase(BaseModel):
     district: str
     state: str
     pin: str
-    address_type: str
+    # Address type can be either 'Permanent' or 'Correspondence'
+    address_type: AddressType = Field(..., pattern='^(Permanent|Correspondence)$')
 
 class EmployeeIn(BaseModel):
     emp_details: EmployeeBase
@@ -82,7 +105,7 @@ class GenericMessage(BaseModel):
 
 class RoomBase(BaseModel):
     room_number: int
-    room_type: str
+    room_type: RoomType
     room_state: str | None = "Available"
 
 class ListRooms(BaseModel):
@@ -90,25 +113,28 @@ class ListRooms(BaseModel):
     room_state: str | None = None
 
 class BookingBase(BaseModel):
-    booked_on: datetime = datetime.now()
+    booked_on: datetime = Field(default_factory=lambda: datetime.now)
     checkin: date
     checkout: date
-    government_id_type: str
-    government_id: str
-    exp_date: str | None
-    govt_id_image: bytes
-    room_type: str
+    government_id_type: GovtIdtype
+    government_id_number: str
+    exp_date: Optional[date | None] = Field(default=None)
+    govt_id_image: Optional[UploadFile| None] = Field(default=None)
     room_num: int | None
     comments: str | None
+    emp_id: int
 
 class BookingIn(BaseModel):
-    customer_details: CustomerIn
-    booking_details: BookingBase
+    customer: CustomerIn
+    booking: BookingBase
+
+class BookingResult(GenericMessage):
+    booking_id: str
 
 class BookingOut(BaseModel):
     booking_id: int
-    customer_details: CustomerOut
-    booking_details: BookingBase
+    customer: CustomerOut
+    booking: BookingBase
 
 class GovtIdTypeBase(BaseModel):
     name: str

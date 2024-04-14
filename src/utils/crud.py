@@ -1,7 +1,7 @@
 from sqlalchemy.orm.session import Session
 from . import models, schemas, cloudbeds_exceptions
 from pydantic import EmailStr, SecretStr
-from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, CursorResult, Update
+from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, ResultProxy, Update
 from itertools import islice
 from typing import List, Dict
 import secrets, string
@@ -492,9 +492,9 @@ class Room(RoomType, RoomState):
             DBError: If the operation fails due to an unknown error.
         '''
         if not self._verify_room_type(room_type):
-            raise ValueError(f"{room_type} doesn't exist in the database.")
+            raise ValueError(f"Invalid room_type: {room_type}")
         if not self._verify_room_state(room_state):
-            raise ValueError(f"{room_state} doesn't exist in the database.")
+            raise ValueError(f"Invalid room_state: {room_state}")
         try:
             # Check if the supplied room_number is available in DB. If yes, raise ValueError
             stmt = Select(models.Room.room_number).where(models.Room.room_number == room_number)
@@ -790,12 +790,12 @@ class Customer:
                 
                 # Add the customer to the database
                 stmt: Insert = Insert(models.Customer).values(**customer.customer_details.model_dump())
-                customer_result: CursorResult = self.db.execute(stmt)
+                customer_result: ResultProxy = self.db.execute(stmt)
                 customer_id: int = customer_result.inserted_primary_key[0]
 
                 # Add the customer Address to teh DB
                 stmt:Insert = Insert(models.CustomerAddress).values(**customer.customer_address.model_dump(), customer_id=customer_id)
-                customer_address_result: CursorResult = self.db.execute(stmt)
+                customer_address_result: ResultProxy = self.db.execute(stmt)
 
                 # Commit the transaction
                 self.db.commit()
@@ -813,7 +813,7 @@ class Customer:
                         raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
     # Get customer
-    def get_customer(self, query_string: str) -> schemas.CustomerOut:
+    def get_customer(self, query_string: str) -> schemas.CustomerOut | None:
         """
         Retrieves a customer from the database based on the provided query string.
 
@@ -838,7 +838,7 @@ class Customer:
             result: Row|None = self.db.execute(stmt).fetchone()
 
             if result == None:
-                raise ValueError()
+                return None
 
             # Build return payload
             result: schemas.CustomerOut = self.__build_customer_out_payload(result)
@@ -926,8 +926,64 @@ class Customer:
 class Booking:
     def __init__(self, db: Session):
         self.db = db
-    
-    def __validate_booking_dates(self, payload: schemas.BookingIn) -> bool:
+
+    def __get_customer_id(self, phone: string, email: EmailStr) -> int | None:
+            '''
+            Check if a customer exists in the database based on their phone number or email.
+
+            Args:
+                phone (string): The phone number of the customer.
+                email (EmailStr): The email address of the customer.
+
+            Returns:
+                int | None: The customer ID if the customer exists in the database, None otherwise.
+            '''
+            customer: Customer = Customer(self.db)
+            # Try to locate the customer with phone number
+            result: schemas.CustomerOut|None = customer.get_customer(phone)
+            if result:
+                return result.customer_id
+            cust_id: schemas.CustomerOut|None = customer.get_customer(email)
+            if result:
+                return result.customer_id
+
+    def __check_room_availability(self, Payload: schemas.BookingIn) -> int | None:
+        """
+        Check if the room is available for booking.
+
+        Args:
+            Payload (schemas.BookingIn): The booking payload containing room information.
+
+        Returns:
+            None
+
+        Raises:
+            valueError: If the room is not available for booking.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        """
+        try:
+            # Check if the room is available for booking
+            room: Room = Room(self.db)
+            result: list[schemas.RoomBase] = room.list_rooms(
+                skip=None,
+                limit=None, 
+                room_number=Payload.booking.room_num,
+                room_type=None,
+                room_state=None
+            )
+            if result == False:
+                raise ValueError("The room is not available for booking.")
+            # Get the room ID from the Rooms table
+            stmt: Select = Select(models.Room).where(models.Room.room_number == Payload.booking.room_num)
+            result: list[models.Room] = self.db.execute(stmt).fetchone()
+            return result[0].room_id
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    def __validate_booking_dates(self, payload: schemas.BookingIn) -> None:
         """
         Validates the booking dates to ensure they are valid and ahead of the booked_on time.
 
@@ -935,24 +991,24 @@ class Booking:
             payload (schemas.BookingIn): The booking payload containing booking details.
 
         Returns:
-            bool: True if the booking dates are valid, False otherwise.
+            None
 
         Raises:
             ValueError: If the booking dates are not valid or ahead of the booked_on date.
         """
         # Check if the booking_start and booking_end dates are ahead of the booked_on date.
-        # booked_on: date = datetime.strptime(payload.booking_details.booked_on, "%Y-%m-%d").date()
-        booked_on: datetime = payload.booking_details.booked_on
-        checkin: date = date(payload.booking_details.checkin)
-        checkout: date = date(payload.booking_details.checkout)
-        if booked_on < checkin or booked_on < checkout:
+        # booked_on: date = datetime.strptime(payload.booking.booked_on, "%Y-%m-%d").date()
+        booked_on: datetime = payload.booking.booked_on
+        checkin: date = payload.booking.checkin
+        checkout: date = payload.booking.checkout
+        if booked_on.date() > checkin or booked_on.date() > checkout:
             # Get system's local timezone
             local_timezone = tz.tzlocal()
             raise ValueError(f"The booking dates should be ahead of the booked on date ({booked_on.replace(tzinfo=local_timezone)}).")
         if checkin > checkout:
             raise ValueError("The booking start date should be ahead of the booking end date.")
 
-    def __validate_govt_id_type(self, payload: schemas.BookingIn) -> bool:
+    def __validate_govt_id(self, payload: schemas.BookingIn) -> int:
         """
         Validates the government ID type and expiry date of the provided governmtnt ID for a booking.
 
@@ -960,28 +1016,25 @@ class Booking:
             payload (schemas.BookingIn): The payload containing booking details.
 
         Returns:
-            bool: True if the government ID type and expiry date are valid, False otherwise.
+            int: The government ID type ID.
 
         Raises:
             ValueError: If the supplied government ID type is not valid or if the government ID expiry date is not ahead of the booking start date.
         """
         # Check if the supplied govt_id_type is valid
         try:
-            result: bool = False
-            
-            stmt: Select = Select(models.GovtIdType).where(models.GovtIdType.name == payload.booking_details.government_id_type)
-            result: Row|None = self.db.execute(stmt).fetchone()
+            stmt: Select = Select(models.GovtIdType).where(models.GovtIdType.name == payload.booking.government_id_type)
+            result: list[models.GovtIdType]|None = self.db.execute(stmt).fetchone()
             if result == None:
-                raise ValueError(f"{payload.booking_details.government_id_type} is not a valid government ID type.")
+                raise ValueError(f"{payload.booking.government_id_type} is not a valid government ID type.")
             # Check if the govt_id_expiry_date is ahead of the booking_start date
-            govt_id_expiry_date: date = datetime.strptime(payload.booking_details.exp_date, "%Y-%m-%d").date()
+            govt_id_expiry_date: date | None = payload.booking.exp_date
             # The government ID should have at least 6 months validity on checkout date
-            if govt_id_expiry_date < payload.booking_details.checkout + timedelta(days=180):
+            if govt_id_expiry_date == None:
+                return result[0].id
+            if govt_id_expiry_date < payload.booking.checkout + timedelta(days=180):
                 raise ValueError("The government ID should have at least 6 months validity on checkout date.")
-            
-            result = True
-            return result
-        
+            return result[0].id
         except Exception as e:
             traceback.print_exc()
             match e.__class__.__name__:
@@ -1050,5 +1103,83 @@ class Booking:
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
-    def add_booking(self, payload):
-        pass
+    def add_booking(self, payload: schemas.BookingIn) -> schemas.BookingResult:
+        
+        try:
+            # Validate the booking dates
+            self.__validate_booking_dates(payload)
+            # Validate the government ID
+            govt_id_type: int = self.__validate_govt_id(payload)
+            # Check if the room is available for booking
+            room_id: int = self.__check_room_availability(payload)
+            
+            # If customer exists in DB, get the customer_ID, else create customer
+            cust_id: int|None = self.__get_customer_id(payload.customer.customer_details.phone, payload.customer.customer_details.email)
+
+            if cust_id:
+                # Check if the provided customer address available in DB. If not, add it.
+                # [FIXME]: Implement support for multiple customer addresses
+                pass
+
+            if cust_id == None:
+                # Customer doesn't exist in DB. Let's add the customer to DB.
+                customer: Customer = Customer(self.db)
+                result: schemas.CreateCustomerResult = customer.add_customer(payload.customer)
+                cust_id = result['cust_id']
+
+            # Verify employee_id
+            employee: schemas.EmployeeOut|None = get_employee(payload.booking.emp_id,db=self.db)
+            if employee == None:
+                raise ValueError("Invalid employee ID.")
+            
+            # Check is the employee is active
+            if employee.emp_details.is_active == False:
+                raise ValueError("The employee is not active.")
+            
+            # Create booking in DB
+            # booking_id is added through a trigger
+            # If the booking was created successfully, set the booking_status == 2 (Confirmed)
+            stmt: Insert = Insert(models.Booking) \
+                            .values(customer_id= cust_id,   
+                                    booked_on = payload.booking.booked_on,   
+                                    checkin = payload.booking.checkin,
+                                    checkout = payload.booking.checkout,
+                                    govt_id_type = govt_id_type,
+                                    govt_id_num = payload.booking.government_id_number,
+                                    exp_date = payload.booking.exp_date,
+                                    govt_id_img = payload.booking.govt_id_image,
+                                    room_id = room_id,
+                                    comments = payload.booking.comments,
+                                    emp_id = payload.booking.emp_id
+                                    )
+            
+            booking_result: ResultProxy = self.db.execute(stmt)
+            # Retrieve the booking_id by refreshing the booking object
+            id: int = booking_result.inserted_primary_key[0]
+            
+            # Update the status of the room to booked
+            room_state: RoomState = RoomState(self.db)    
+            room_states: list[Row] = room_state._get_supported_room_states_with_id()
+            state_id: int = [row.id for row in room_states if row.room_state.lower() == "booked"][0]
+            booking_result.room_state = state_id
+
+            self.db.commit()
+
+            # Use the id (primary key) to fetch the booking_id
+            stmt: Select = Select(models.Booking).where(models.Booking.id == id)
+            result: models.Booking|None = self.db.execute(stmt).fetchone()
+            booking_id: int = result.booking_id
+            booking_result: schemas.BookingResult = schemas.BookingResult(booking_id=booking_id, msg="Success")  
+            return booking_result
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+            
+
+
+

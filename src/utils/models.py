@@ -1,5 +1,5 @@
 # Cloudbeds creation DDL:../../create-tables-1.sql
-from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, Date
+from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, Date, BLOB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
@@ -161,8 +161,11 @@ class Booking(Base):
     booked_on: Mapped[DateTime] = mapped_column(DateTime, nullable=False)
     checkin: Mapped[Date] = mapped_column(Date, nullable=False)
     checkout: Mapped[Date] = mapped_column(Date, nullable=False)
-    govt_id_number: Mapped[str] = mapped_column(String(20), nullable=False)
-    
+    govt_id_num: Mapped[str] = mapped_column(String(20), nullable=False)
+    exp_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
+    govt_id_img: Mapped[Optional[BLOB]] = mapped_column(BLOB, nullable=True)
+    comments: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
     # Foreign keys
     booking_status_id: Mapped[int] = mapped_column(Integer, ForeignKey("BookingStatuses.id"), nullable=False, default=1)
     customer_id: Mapped[int] = mapped_column(Integer, ForeignKey("Customers.customer_id"), nullable=False)
