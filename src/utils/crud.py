@@ -1144,7 +1144,7 @@ class Booking:
                                     booked_on = payload.booking.booked_on,   
                                     checkin = payload.booking.checkin,
                                     checkout = payload.booking.checkout,
-                                    govt_id_type = govt_id_type,
+                                    govt_id_type_id = govt_id_type,
                                     govt_id_num = payload.booking.government_id_number,
                                     exp_date = payload.booking.exp_date,
                                     govt_id_img = payload.booking.govt_id_image,
@@ -1167,8 +1167,8 @@ class Booking:
 
             # Use the id (primary key) to fetch the booking_id
             stmt: Select = Select(models.Booking).where(models.Booking.id == id)
-            result: models.Booking|None = self.db.execute(stmt).fetchone()
-            booking_id: int = result.booking_id
+            result: list[models.Booking] = self.db.execute(stmt).fetchone()
+            booking_id: int = result[0].booking_id
             booking_result: schemas.BookingResult = schemas.BookingResult(booking_id=booking_id, msg="Success")  
             return booking_result
         except Exception as e:
