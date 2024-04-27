@@ -1001,24 +1001,46 @@ class Booking:
             cloudbeds_exceptions.DBError: If the database operation fails.
         """
         try:
-            # Check if the room is available for booking
-            room: Room = Room(self.db)
-            result: list[schemas.RoomBase] = room.list_rooms(
-                skip=None,
-                limit=None, 
-                room_number=Payload.booking.room_num,
-                room_type=None,
-                room_state=None
-            )
-            if result == False:
-                raise ValueError("The room is not available for booking.")
-            # Get the room ID from the Rooms table
-            stmt: Select = Select(models.Room).where(models.Room.room_number == Payload.booking.room_num)
+            # Check if the room is availabel for booking.
+            # The room availability information is calculated based on the Bookings table.
+            # If the room is already booked for the specified dates, it is not available for booking.
+            
+            # Get the room_id from the rooms table
+            stmt: Select = Select(models.Room)  \
+                            .where(models.Room.room_number == Payload.booking.room_num)
             result: list[models.Room] = self.db.execute(stmt).fetchone()
-            return result[0].room_id
+            room_id: int = result[0].room_id
+
+            # Check if the room is available for booking
+            stmt: Select = Select(models.Booking)  \
+                            .where(models.Booking.room_id == room_id)  \
+                            .where(models.Booking.checkin <= Payload.booking.checkout)  \
+                            .where(models.Booking.checkout >= Payload.booking.checkin)
+            result: list[models.Booking] = self.db.execute(stmt).fetchone()
+            if result:
+                raise ValueError("The room is not available for booking.")
+            return room_id
+        # try:
+        #     # Check if the room is available for booking
+        #     room: Room = Room(self.db)
+        #     result: list[schemas.RoomBase] = room.list_rooms(
+        #         skip=None,
+        #         limit=None, 
+        #         room_number=Payload.booking.room_num,
+        #         room_type=None,
+        #         room_state=None
+        #     )
+        #     if result == False:
+        #         raise ValueError("The room is not available for booking.")
+        #     # Get the room ID from the Rooms table
+        #     stmt: Select = Select(models.Room).where(models.Room.room_number == Payload.booking.room_num)
+        #     result: list[models.Room] = self.db.execute(stmt).fetchone()
+        #     return result[0].room_id
         except Exception as e:
             traceback.print_exc()
             match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
@@ -1325,6 +1347,48 @@ class Booking:
                                     )
                         
             booking_result: ResultProxy = self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    def cancel_booking(self, booking_id: str) -> schemas.GenericMessage:
+        '''
+        Cancels the specified booking.
+
+        Args:
+            booking_id (str): The booking ID to cancel.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            ValueError: If the booking ID doesn't exist in the database.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        '''
+        try:
+            # Check if the booking exists in the DB.
+            booking: list[schemas.BookingOut] = self.list_bookings(skip=None, limit=None, booking_id=booking_id)
+
+            if booking == []:
+                raise ValueError("Booking doesn't exist in the database.") 
+            
+            # Update the booking status to cancelled
+            stmt: Update = Update(models.Booking) \
+                            .where(models.Booking.booking_id == booking_id) \
+                            .values(booking_status = 3)
+            #booking_result: ResultProxy =             
+            self.db.execute(stmt)
+            
+            # Release the room
+            stmt: Update = Update(models.Room)   \
+                            .where(models.Room.room_number == booking[0].booking.room_num) \
+                            .values(state_id = 1)    
             self.db.commit()
             return {"msg":"Success"}
         except Exception as e:
