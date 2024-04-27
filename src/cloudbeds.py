@@ -176,7 +176,23 @@ def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
 # Get booking
 
 # List bookings
-
+@api.get("/booking/list/",
+            name="List Bookings",
+            response_model=list[schemas.BookingOut],
+            tags=["Booking"],
+            description= '''Returns the list of all bookings from the database.
+            If the database is empty, it returns HTTP 404.''')
+def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
+    booking: crud.Booking = crud.Booking(db)
+    try:
+        bookings: list[schemas.BookingOut] = booking.list_bookings(skip, limit)
+        return bookings
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
 # Manage booking
 
 

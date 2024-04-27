@@ -818,7 +818,7 @@ class Customer:
         Retrieves a customer from the database based on the provided query string.
 
         Args:
-            query_string (str): The query string to search for a customer. It can be either a phone number or an email.
+            query_string (str): The query string to search for a customer. It can be either the customer_id, customer's phone number or customer's email.
 
         Returns:
             schemas.CustomerOut: The customer information as a `CustomerOut` object.
@@ -831,6 +831,7 @@ class Customer:
             # Check if the customer exists in the DB.
             stmt: Select = Select(models.Customer).where(
                 or_(
+                    models.Customer.customer_id == query_string,
                     models.Customer.phone == query_string,
                     models.Customer.email == query_string
                 )
@@ -924,6 +925,44 @@ class Customer:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
                 
 class Booking:
+    def __build_booking_base_payload(self, booking: models.Booking) -> schemas.BookingBase:
+        '''
+        Builds the BookingBase payload.
+
+        Args:
+            result: (Row) The result object containing the booking data.
+        '''
+        booking_data: schemas.BookingBase = schemas.BookingBase(
+            booked_on = booking.booked_on,
+            checkin = booking.checkin,
+            checkout = booking.checkout,
+            government_id_type = booking.govt_id_type.name,
+            government_id_number = booking.govt_id_num,
+            exp_date = booking.exp_date,
+            govt_id_image = None,
+            room_num = booking.room.room_number,
+            comments = booking.comments,
+            emp_id = booking.emp_id,
+        )
+
+        return booking_data
+
+    def __build_customer_out_payload(self, booking: Row)->schemas.CustomerOut:
+        '''
+        Builds the CustomerOut payload
+        
+        Args:
+            booking: (models.Booking) The booking object containing the customer details.
+
+        '''
+        # Get the customer_id from the booking
+        customer_id: int = booking._mapping["Booking"].customer_id
+        # Use the get_customer method to get the customer details
+        customer: Customer = Customer(self.db)
+        result: schemas.CustomerOut = customer.get_customer(customer_id)
+
+        return result
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -1179,7 +1218,60 @@ class Booking:
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
-            
+    def list_bookings(self, skip: int, limit: int, booking_id: int|None = None) -> List[schemas.BookingOut]:
+        """
+        Retrieves a list of bookings from the database.
+
+        Args:
+            skip (int): The number of records to skip.
+            limit (int): The maximum number of records to return.
+            booking_id (int, optional): The booking ID to filter by. Defaults to None.
+
+        Returns:
+            List[schemas.BookingOut]: A list of bookings.
+
+        Raises:
+            ValueError: If the booking ID doesn't exist in the database.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        """
+        try:
+            # Get the list of bookings
+            stmt: Select = Select(models.Booking).limit(limit).offset(skip)
+            result: List[Row] = self.db.execute(stmt).fetchall()
+            if result == None:
+                raise ValueError("No bookings found in the database.")
+
+            # Build the BookingOut payload
+            cb_booking: Row
+            bookings: list[schemas.BookingOut] = []
+            for cb_booking in result:
+                customer: schemas.CustomerOut = self.__build_customer_out_payload(cb_booking)
+                booking_data: schemas.BookingBase = self.__build_booking_base_payload(cb_booking.Booking)
+                booking_id = cb_booking.Booking.booking_id
+                bookings.append(schemas.BookingOut(booking_id=booking_id, customer=customer, booking=booking_data))
+
+            return bookings
+                # booking: schemas.BookingOut = schemas.BookingOut(
+                #     booking_id = cb_booking.booking_id,
+                #     customer = customer,
+                #     booked_on = cb_booking.booked_on,
+                #     checkin = cb_booking.checkin,
+                #     checkout = cb_booking.checkout,
+                #     govt_id_type = cb_booking.govt_id_type,
+                #     govt_id_num = cb_booking.govt_id_num,
+                #     exp_date = cb_booking.exp_date,
+                #     govt_id_img = cb_booking.govt_id_img,
+                #     room_id = cb_booking.room_id,
+                #     comments = cb_booking.comments,
+                #     emp_id = cb_booking.emp_id
+                # )
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")            
 
 
 

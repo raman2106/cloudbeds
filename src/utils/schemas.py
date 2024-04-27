@@ -132,7 +132,7 @@ class BookingResult(GenericMessage):
     booking_id: str
 
 class BookingOut(BaseModel):
-    booking_id: int
+    booking_id: str
     customer: CustomerOut
     booking: BookingBase
 
