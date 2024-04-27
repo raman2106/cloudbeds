@@ -1265,5 +1265,72 @@ class Booking:
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")            
 
+    def update_booking(self, booking_id: str, payload: schemas.BookingIn) -> schemas.GenericMessage:
+        """
+        Updates a booking in the database.
 
+        Note: This method doesn't updat the cuatomer details. If you want to update the customer details, use the update_customer method.
 
+        Args:
+            booking_id (str): The booking ID to update.
+            payload (schemas.BookingIn): The booking data to be updated.
+
+        Returns:
+            schemas.GenericMessage: A message indicating the success or failure of the operation.
+
+        Raises:
+            ValueError: If the booking ID doesn't exist in the database.
+            cloudbeds_exceptions.DBError: If the database operation fails.
+        """
+        try:
+            # Check if the booking exists in the DB.
+            stmt: Select = Select(models.Booking).where(models.Booking.booking_id == booking_id)
+            result: Row|None = self.db.execute(stmt).fetchone()
+            if result == None:
+                raise ValueError("Booking doesn't exist in the database.")
+
+            # Validate the booking dates
+            self.__validate_booking_dates(payload)
+            # Validate the government ID
+            govt_id_type: int = self.__validate_govt_id(payload)
+            # Check if the room is available for booking
+            room_id: int = self.__check_room_availability(payload)
+            
+            # If customer exists in DB, get the customer_ID, else create customer
+            cust_id: int|None = self.__get_customer_id(payload.customer.customer_details.phone, payload.customer.customer_details.email)
+
+            # Verify employee_id
+            employee: schemas.EmployeeOut|None = get_employee(payload.booking.emp_id,db=self.db)
+            if employee == None:
+                raise ValueError("Invalid employee ID.")
+            
+            # Check is the employee is active
+            if employee.emp_details.is_active == False:
+                raise ValueError("The employee is not active.")
+            
+            # Update booking in DB
+            stmt: Update = Update(models.Booking) \
+                            .where(models.Booking.booking_id == booking_id) \
+                            .values(customer_id= cust_id,
+                                    booked_on = payload.booking.booked_on,   
+                                    checkin = payload.booking.checkin,
+                                    checkout = payload.booking.checkout,
+                                    govt_id_type_id = govt_id_type,
+                                    govt_id_num = payload.booking.government_id_number,
+                                    exp_date = payload.booking.exp_date,
+                                    govt_id_img = payload.booking.govt_id_image,
+                                    room_id = room_id,
+                                    comments = payload.booking.comments,
+                                    emp_id = payload.booking.emp_id
+                                    )
+                        
+            booking_result: ResultProxy = self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")

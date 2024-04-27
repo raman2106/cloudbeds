@@ -173,8 +173,6 @@ def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
                     raise HTTPException(status_code=400, detail=str(e.__str__()))
                 case _:
                     raise HTTPException(status_code=500, detail=str(e.__str__()))
-# Get booking
-
 # List bookings
 @api.get("/booking/list/",
             name="List Bookings",
@@ -193,9 +191,24 @@ def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20,
                 raise HTTPException(status_code=404, detail=str(e.__str__()))
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
-# Manage booking
-
-
+# Update booking
+@api.put("/booking/update/{booking_id}",
+            name="Update Booking",
+            response_model=schemas.GenericMessage,
+            tags=["Booking"],
+            description='''Updates the specified booking.
+            If the booking isn't found in the database, it returns HTTP 404.''')
+def update_booking(booking_id: str, payload: schemas.BookingIn, db: Session = Depends(get_db)):
+    booking: crud.Booking = crud.Booking(db)
+    try:
+        result: schemas.GenericMessage = booking.update_booking(booking_id, payload)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 
 
