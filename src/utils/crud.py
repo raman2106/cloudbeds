@@ -400,17 +400,6 @@ class RoomState():
                     case _:
                         raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}: DB operation failed.")
 
-    def _get_supported_room_states_with_id(self) -> List[Row]:
-        '''
-        Returns the supported room states with their IDs.
-
-        Returns:
-            list: A list of supported room states with their IDs.
-        '''
-        stmt = select(models.RoomState.id, models.RoomState.room_state)
-        result: list[Row] = self.db.execute(stmt).fetchall()
-        return result
-
     def _verify_room_state(self, room_state: str) -> bool:
         '''
         Verifies if the supplied room state exists in the database.
@@ -505,7 +494,7 @@ class Room(RoomType, RoomState):
             room_types: list[Row] = self._get_supported_room_types_with_id()
             r_type_id: int = [row.id for row in room_types if row.room_type == room_type][0]
             # Get state_id by using the room_state
-            room_states: list[Row] = self._get_supported_room_states_with_id()
+            room_states: list[Row] = self.__get_supported_booking_statuses_with_id()
             state_id: int = [row.id for row in room_states if row.room_state == room_state][0]
             # Insert the room record
             stmt = Insert(models.Room).values(room_number=room_number, r_type_id=r_type_id, state_id=state_id)
@@ -609,7 +598,7 @@ class Room(RoomType, RoomState):
                     raise ValueError(f"{room_type} doesn't exist in the database.")
             if room_state:
                 if self._verify_room_state(room_state):
-                    room_state: (int) = [row.id for row in self._get_supported_room_states_with_id() \
+                    room_state: (int) = [row.id for row in self.__get_supported_booking_statuses_with_id() \
                                         if row.room_state.lower() == room_state.lower()][0]
                 else:
                     raise ValueError(f"{room_state} doesn't exist in the database.")
@@ -724,7 +713,7 @@ class Room(RoomType, RoomState):
             room_types: list[Row] = self._get_supported_room_types_with_id()
             r_type_id: int = [row.id for row in room_types if row.room_type.lower() == room_type.lower()][0]
             # Get state_id by using the room_state
-            room_states: list[Row] = self._get_supported_room_states_with_id()
+            room_states: list[Row] = self.__get_supported_booking_statuses_with_id()
             state_id: int = [row.id for row in room_states if row.room_state.lower() == room_state.lower()][0]
             # Update the room record
             stmt = update(models.Room).where(models.Room.room_number == room_number).values(r_type_id=r_type_id, state_id=state_id)
@@ -987,6 +976,18 @@ class Booking:
             if result:
                 return result.customer_id
 
+    def __get_supported_booking_statuses_with_id(self) -> List[Row]:
+        '''
+        Returns the supported room states with their IDs.
+
+        Returns:
+            list: A list of supported room states with their IDs.
+        '''
+        stmt = select(models.BookingStatus)
+        result: list[Row] = self.db.execute(stmt).fetchall()
+        return result
+
+
     def __check_room_availability(self, Payload: schemas.BookingIn) -> int | None:
         """
         Check if the room is available for booking.
@@ -1016,7 +1017,12 @@ class Booking:
             stmt: Select = Select(models.Booking)  \
                             .where(models.Booking.room_id == room_id)  \
                             .where(models.Booking.checkin <= Payload.booking.checkout)  \
-                            .where(models.Booking.checkout >= Payload.booking.checkin)
+                            .where(models.Booking.checkout >= Payload.booking.checkin) \
+                            .where(
+                                or_(models.Booking.booking_status_id == 2, 
+                                    models.Booking.booking_status_id == 3
+                                    )
+                            )
             result: list[models.Booking] = self.db.execute(stmt).fetchone()
             if result:
                 raise ValueError("The room is not available for booking.")
@@ -1202,13 +1208,16 @@ class Booking:
             booking_result: ResultProxy = self.db.execute(stmt)
             # Retrieve the booking_id by refreshing the booking object
             id: int = booking_result.inserted_primary_key[0]
-            
-            # Update the status of the room to booked
-            room_state: RoomState = RoomState(self.db)    
-            room_states: list[Row] = room_state._get_supported_room_states_with_id()
-            state_id: int = [row.id for row in room_states if row.room_state.lower() == "booked"][0]
-            booking_result.room_state = state_id
+            self.db.commit()
 
+            # Update the status of the Booking to Booked    
+            booking_statuses: list[Row] = self.__get_supported_booking_statuses_with_id()
+            booked_status_id: int = [row.BookingStatus.id for row in booking_statuses if row.BookingStatus.name.lower() == "booked"][0]
+            
+            stmt: Update = Update(models.Booking) \
+                            .where(models.Booking.id == id) \
+                            .values(booking_status_id=booked_status_id)
+            self.db.execute(stmt)
             self.db.commit()
 
             # Use the id (primary key) to fetch the booking_id
