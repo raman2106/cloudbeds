@@ -1125,7 +1125,7 @@ class Booking:
                 # Customer doesn't exist in DB. Let's add the customer to DB.
                 customer: Customer = Customer(self.db)
                 result: schemas.CreateCustomerResult = customer.add_customer(payload.customer)
-                cust_id = result['cust_id']
+                cust_id = result.customer_id  
 
             # Verify employee_id
             employee: schemas.EmployeeOut|None = get_employee(payload.booking.emp_id,db=self.db)

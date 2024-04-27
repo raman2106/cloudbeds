@@ -158,7 +158,7 @@ async def list_gov_id(db: Session = Depends(get_db)):
 # Create booking
 @api.post("/booking/add/",
             name="Add Booking",
-            response_model=schemas.GenericMessage,
+            response_model=schemas.BookingResult,
             tags=["Booking"],
             description='''Creates a booking record in the database.
             If a booking fails, returns HTTP 500.''')
