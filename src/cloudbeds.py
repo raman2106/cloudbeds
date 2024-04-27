@@ -210,7 +210,23 @@ def update_booking(booking_id: str, payload: schemas.BookingIn, db: Session = De
             case _:
                 raise HTTPException(status_code=500, detail=str(e.__str__()))
 
-
+@api.patch("/booking/cancel/{booking_id}",
+            name="Cancel Booking",
+            response_model=schemas.GenericMessage,
+            tags=["Booking"],
+            description='''Cancels the specified booking.
+            If the booking isn't found in the database, it returns HTTP 404.''')
+def cancel_booking(booking_id: str, db: Session = Depends(get_db)):
+    booking: crud.Booking = crud.Booking(db)
+    try:
+        result: schemas.GenericMessage = booking.cancel_booking(booking_id)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
 
 #=============================
 # Customer endpoints

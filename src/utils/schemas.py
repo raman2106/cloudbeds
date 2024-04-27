@@ -114,6 +114,7 @@ class ListRooms(BaseModel):
 
 class BookingBase(BaseModel):
     booked_on: datetime = Field(default_factory=lambda: datetime.now)
+    status: Optional[str| None] = Field(default=None, description="Don't specify any value for this field. It will be set to 'Booked' automatically.")
     checkin: date
     checkout: date
     government_id_type: GovtIdtype

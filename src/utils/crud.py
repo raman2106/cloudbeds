@@ -934,6 +934,7 @@ class Booking:
         '''
         booking_data: schemas.BookingBase = schemas.BookingBase(
             booked_on = booking.booked_on,
+            status= booking.booking_status.name,
             checkin = booking.checkin,
             checkout = booking.checkout,
             government_id_type = booking.govt_id_type.name,
@@ -1020,22 +1021,6 @@ class Booking:
             if result:
                 raise ValueError("The room is not available for booking.")
             return room_id
-        # try:
-        #     # Check if the room is available for booking
-        #     room: Room = Room(self.db)
-        #     result: list[schemas.RoomBase] = room.list_rooms(
-        #         skip=None,
-        #         limit=None, 
-        #         room_number=Payload.booking.room_num,
-        #         room_type=None,
-        #         room_state=None
-        #     )
-        #     if result == False:
-        #         raise ValueError("The room is not available for booking.")
-        #     # Get the room ID from the Rooms table
-        #     stmt: Select = Select(models.Room).where(models.Room.room_number == Payload.booking.room_num)
-        #     result: list[models.Room] = self.db.execute(stmt).fetchone()
-        #     return result[0].room_id
         except Exception as e:
             traceback.print_exc()
             match e.__class__.__name__:
@@ -1381,14 +1366,9 @@ class Booking:
             # Update the booking status to cancelled
             stmt: Update = Update(models.Booking) \
                             .where(models.Booking.booking_id == booking_id) \
-                            .values(booking_status = 3)
+                            .values(booking_status_id = 5)
             #booking_result: ResultProxy =             
             self.db.execute(stmt)
-            
-            # Release the room
-            stmt: Update = Update(models.Room)   \
-                            .where(models.Room.room_number == booking[0].booking.room_num) \
-                            .values(state_id = 1)    
             self.db.commit()
             return {"msg":"Success"}
         except Exception as e:
