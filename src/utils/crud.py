@@ -1236,8 +1236,13 @@ class Booking:
         """
         try:
             # Get the list of bookings
-            stmt: Select = Select(models.Booking).limit(limit).offset(skip)
+            if booking_id:
+                stmt: Select = Select(models.Booking).where(models.Booking.booking_id == booking_id)
+            else:
+                stmt: Select = Select(models.Booking).limit(limit).offset(skip)
+            
             result: List[Row] = self.db.execute(stmt).fetchall()
+            
             if result == None:
                 raise ValueError("No bookings found in the database.")
 
@@ -1251,20 +1256,7 @@ class Booking:
                 bookings.append(schemas.BookingOut(booking_id=booking_id, customer=customer, booking=booking_data))
 
             return bookings
-                # booking: schemas.BookingOut = schemas.BookingOut(
-                #     booking_id = cb_booking.booking_id,
-                #     customer = customer,
-                #     booked_on = cb_booking.booked_on,
-                #     checkin = cb_booking.checkin,
-                #     checkout = cb_booking.checkout,
-                #     govt_id_type = cb_booking.govt_id_type,
-                #     govt_id_num = cb_booking.govt_id_num,
-                #     exp_date = cb_booking.exp_date,
-                #     govt_id_img = cb_booking.govt_id_img,
-                #     room_id = cb_booking.room_id,
-                #     comments = cb_booking.comments,
-                #     emp_id = cb_booking.emp_id
-                # )
+
         except Exception as e:
             traceback.print_exc()
             match e.__class__.__name__:

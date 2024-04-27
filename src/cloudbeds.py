@@ -182,10 +182,10 @@ def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
             tags=["Booking"],
             description= '''Returns the list of all bookings from the database.
             If the database is empty, it returns HTTP 404.''')
-def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
+def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20, booking_id: str |None = None):
     booking: crud.Booking = crud.Booking(db)
     try:
-        bookings: list[schemas.BookingOut] = booking.list_bookings(skip, limit)
+        bookings: list[schemas.BookingOut] = booking.list_bookings(skip, limit, booking_id)
         return bookings
     except Exception as e:
         match e.__class__.__name__:
