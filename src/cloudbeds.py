@@ -173,6 +173,26 @@ def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
                     raise HTTPException(status_code=400, detail=str(e.__str__()))
                 case _:
                     raise HTTPException(status_code=500, detail=str(e.__str__()))
+
+# Set booking status to Ongoing
+@api.patch("/booking/setstatus/{booking_id}",
+            name="Set Booking to Ongoing",
+            response_model=schemas.GenericMessage,
+            tags=["Booking"],
+            description='''Sets the status of the specified booking to Ongoing.
+            If the booking isn't found in the database, it returns HTTP 404.''')
+def set_booking_status(booking_id: str, db: Session = Depends(get_db)):
+    booking: crud.Booking = crud.Booking(db)
+    try:
+        result: schemas.GenericMessage = booking.set_booking_status(booking_id)
+        return result
+    except Exception as e:
+        match e.__class__.__name__:
+            case "ValueError":
+                raise HTTPException(status_code=404, detail=str(e.__str__()))
+            case _:
+                raise HTTPException(status_code=500, detail=str(e.__str__()))
+
 # List bookings
 @api.get("/booking/list/",
             name="List Bookings",

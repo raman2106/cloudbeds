@@ -1128,6 +1128,37 @@ class Booking:
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
 
+    def set_booking_status(self, booking_id) -> schemas.GenericMessage:
+        '''
+        Sets the state of the booking to "Ongoing"
+
+        Args:
+            booking_id: (int) The booking ID
+        '''
+        try:
+            # Get the booking record
+            stmt: Select = Select(models.Booking).where(models.Booking.booking_id == booking_id)
+            result: Row | None = self.db.execute(stmt).fetchone()
+            if result == None:
+                raise ValueError("Booking doesn't exist in the database.")
+            if result.Booking.checkin > datetime.now().date():
+                raise ValueError("The checkin date is in the future.")
+            if result.Booking.checkin < datetime.now().date():
+                raise ValueError("The checkin date is in the past.")
+            stmt: Update = Update(models.Booking) \
+                            .where(models.Booking.booking_id == booking_id) \
+                            .values(booking_status_id=3)
+            self.db.execute(stmt)
+            self.db.commit()
+            return {"msg":"Success"}
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(e)
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+            
     def get_supported_govt_id_types(self) -> list[schemas.GovtIdTypeBase]:
         """
         Retrieves the supported government ID types from the database.
@@ -1375,8 +1406,7 @@ class Booking:
             # Update the booking status to cancelled
             stmt: Update = Update(models.Booking) \
                             .where(models.Booking.booking_id == booking_id) \
-                            .values(booking_status_id = 5)
-            #booking_result: ResultProxy =             
+                            .values(booking_status_id = 5)             
             self.db.execute(stmt)
             self.db.commit()
             return {"msg":"Success"}
