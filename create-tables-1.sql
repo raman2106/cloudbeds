@@ -280,14 +280,25 @@ INSERT INTO BookingIDGenerator (last_booking_id) VALUES (1001);
 
 -- Trigger to generate custom booking IDs
 DELIMITER //
+
 CREATE TRIGGER generate_booking_id
 BEFORE INSERT ON Bookings
 FOR EACH ROW
 BEGIN
     DECLARE new_booking_id INT;
-    SET new_booking_id = (SELECT last_booking_id + 1 FROM BookingIDGenerator);
+
+    -- Lock the BookingIDGenerator table to prevent race conditions
+    -- and ensure that only one transaction can update the last_booking_id.
+    -- This ensures atomicity and consistency.
+    SELECT last_booking_id + 1 INTO new_booking_id
+    FROM BookingIDGenerator
+    FOR UPDATE;
+
     SET NEW.booking_id = CONCAT('B', new_booking_id);
+
+    -- Update the last_booking_id directly in the row that was locked.
     UPDATE BookingIDGenerator SET last_booking_id = new_booking_id;
 END;
 //
+
 DELIMITER ;
