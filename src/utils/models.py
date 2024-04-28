@@ -1,5 +1,5 @@
 # Cloudbeds creation DDL:../../create-tables-1.sql
-from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, and_
+from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckConstraint, Date, BLOB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
@@ -16,10 +16,12 @@ class Customer(Base):
     last_name: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-#    address_id: Mapped[int] = mapped_column(Integer, ForeignKey("EmployeeAddresses.address_id"), nullable=False)
     
     # Define the relationship to the EmployeeAddress model
     addresses: Mapped[list["CustomerAddress"]] = relationship("CustomerAddress", back_populates="customer")
+
+    # Define the relationship to the Booking model
+    booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="customer")
 
 class CustomerAddress(Base):
     __tablename__ = "CustomerAddresses"
@@ -66,6 +68,9 @@ class Employee(Base):
     
     # Attributes used in relationships
     addresses: Mapped[list["EmployeeAddress"]] = relationship("EmployeeAddress", back_populates="employee")
+
+    # Define the relationship to the Booking model
+    booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="employee")
 
     # Info on password hashing:
     # https://dev.to/kaelscion/authentication-hashing-in-sqlalchemy-1bem
@@ -129,3 +134,56 @@ class Room(Base):
     # Define the back-reference to the RoomType and RoomState models
     room_type: Mapped[RoomType] = relationship('RoomType', back_populates='rooms', foreign_keys=[r_type_id])
     room_state: Mapped[RoomState] = relationship('RoomState', back_populates='rooms', foreign_keys=[state_id])
+
+    # Define the relationship to the Booking model
+    booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="room")
+
+class GovtIdType(Base):
+    __tablename__ = "GovtIdTypes"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Define the relationship to the Booking model
+    booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="govt_id_type")
+
+class BookingStatus(Base):
+    __tablename__ = "BookingStatuses"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    name: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Define the relationship to the Booking model
+    booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="booking_status")
+
+class Booking(Base):
+    __tablename__ = "Bookings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    booking_id: Mapped[str] = mapped_column(String(20), nullable=False, autoincrement=False)
+    booked_on: Mapped[DateTime] = mapped_column(DateTime, nullable=False)
+    checkin: Mapped[Date] = mapped_column(Date, nullable=False)
+    checkout: Mapped[Date] = mapped_column(Date, nullable=False)
+    govt_id_num: Mapped[str] = mapped_column(String(20), nullable=False)
+    exp_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
+    govt_id_img: Mapped[Optional[BLOB]] = mapped_column(BLOB, nullable=True)
+    comments: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Foreign keys
+    booking_status_id: Mapped[int] = mapped_column(Integer, ForeignKey("BookingStatuses.id"), nullable=False, default=1)
+    customer_id: Mapped[int] = mapped_column(Integer, ForeignKey("Customers.customer_id"), nullable=False)
+    room_id: Mapped[int] = mapped_column(Integer, ForeignKey("Rooms.room_id"))
+    govt_id_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("GovtIdTypes.id"))
+    emp_id: Mapped[int] = mapped_column(Integer, ForeignKey("Employees.emp_id"))
+
+    # Define the back-reference to the BookingStatus model
+    booking_status: Mapped[BookingStatus] = relationship('BookingStatus', back_populates='booking')
+
+    # Define the back-reference to the Customer model
+    customer: Mapped[Customer] = relationship('Customer', back_populates='booking')
+
+    # Define the back-reference to the Room model
+    room: Mapped[Room] = relationship('Room', back_populates='booking')
+
+    # Define the back-reference to the GovtIdType model
+    govt_id_type: Mapped[GovtIdType] = relationship('GovtIdType', back_populates='booking')
+
+    # Define the back-reference to the Employee model
+    employee: Mapped[Employee] = relationship('Employee', back_populates='booking')
