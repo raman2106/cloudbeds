@@ -6,6 +6,7 @@ from utils import models, schemas, crud
 from utils.database import SessionLocal, engine
 from sqlalchemy.orm.session import Session
 from werkzeug.security import generate_password_hash
+from utils import auth
 
 #Used in Test endpoints
 from pydantic import EmailStr
@@ -17,6 +18,8 @@ import traceback
 models.Base.metadata.create_all(bind=engine)
 
 api = FastAPI(title="CloudBeds API", version="1.0.0" )
+api.include_router(auth.router)
+
 
 # Dependency
 def get_db():
@@ -585,4 +588,4 @@ async def update_room_state(room_state: str, new_room_state: str, db: Session = 
 
 if __name__ == "__main__":
     # USed to run the code in debug mode.
-    uvicorn.run(api, host="0.0.0.0", port=8000)
+    uvicorn.run(api, host="0.0.0.0", port=8080)

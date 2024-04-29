@@ -61,7 +61,7 @@ class EmployeeBase(BaseModel):
     middle_name: str | None
     last_name: str
     email: EmailStr
-    phone: str
+    phone: int
     is_active: bool = False
 
 class EmployeeAddressBase(BaseModel):
