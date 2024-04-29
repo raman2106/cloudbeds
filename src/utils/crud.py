@@ -279,6 +279,8 @@ class Employee():
                     stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
                 elif EmailStr._validate(query_value):
                     stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
+                else:
+                    stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
                 
                 result: Row|None = self.__db.execute(stmt).fetchone()
                 
@@ -304,6 +306,30 @@ class Employee():
                     raise ValueError(f"{e.__class__.__name__}: {e}")
                 case _:
                     raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    def reset_password(self, emp_id: int) -> schemas.EmployeePasswordOut:
+        '''
+        Resets the employee's password and returns the new password to the caller.
+        
+        Args:
+        * emp_id: (int) Employee ID
+        
+        Returns:
+        * schemas.EmployeePasswordOut: The employee ID and the new password.
+        '''
+        # Set a secured password
+        password:SecretStr = self.__generate_password()
+        password_hash:SecretStr = self.__bcrypt_context.hash(password)
+
+        # Create an update statement
+
+        stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=password_hash)
+        
+        self.__db.execute(stmt)
+        self.__db.commit()
+        # Create the return payload
+        result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
+        return result
 
 
 class RoomType():
