@@ -77,8 +77,11 @@ async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
          description= '''Returns the list of all employees from the database.
          If the database is empty, it returns HTTP 404.'''
          )
-async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
-    employees: List[schemas.EmployeeOut]|None = crud.list_employees(db, skip, limit)
+async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 20, query_value: int|None = None):
+    cb_employee: crud.Employee = crud.Employee(db=db)
+
+    employees: List[schemas.EmployeeOut]|None = cb_employee.list_employees(skip, limit, query_value)
+    
     if employees:
         return employees
     else:

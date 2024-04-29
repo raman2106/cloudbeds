@@ -263,7 +263,7 @@ class Employee():
         result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
         return result
 
-    def list_employees(self, skip: int = 0, limit: int = 10, query_value: int|EmailStr = None) -> List[schemas.EmployeeOut]|None:
+    def list_employees(self, skip: int = 0, limit: int = 10, query_value: int|EmailStr|str|None = None) -> List[schemas.EmployeeOut]|None:
         '''
         Returns the list of all employees from the database. If the database is empty, it returns [None].
         By default, it returns 10 records at a time.
@@ -279,8 +279,6 @@ class Employee():
                     stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
                 elif EmailStr._validate(query_value):
                     stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
-                else:
-                    stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
                 
                 result: Row|None = self.__db.execute(stmt).fetchone()
                 
@@ -300,7 +298,7 @@ class Employee():
             employees:List[schemas.EmployeeOut] = [self.__build_emp_out_payload(employee) for employee in result]
             return employees
         except Exception as e:
-            traceback(traceback.print_exc())
+            traceback.print_exc()
             match e.__class__.__name__:
                 case "ValueError":
                     raise ValueError(f"{e.__class__.__name__}: {e}")
