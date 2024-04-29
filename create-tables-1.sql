@@ -92,7 +92,9 @@ CREATE TABLE EmployeeRoles(
 	id INT NOT NULL AUTO_INCREMENT,
     emp_id INT NOT NULL,
     role_id INT NOT NULL,
-    PRIMARY KEY(id)
+	PRIMARY KEY (`id`),
+	FOREIGN KEY (`emp_id`) REFERENCES `Employees`(`emp_id`),
+	FOREIGN KEY (`role_id`) REFERENCES `Roles`(`id`)
 );
 
 CREATE TABLE Customers (

@@ -7,10 +7,13 @@ from typing import List, Dict
 import secrets, string
 from werkzeug.security import generate_password_hash
 import traceback
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, UTC
 from dateutil import tz
 from passlib.context import CryptContext
+from jose import jwt, JWTError
 
+SECRET_KEY = "JWT_SECRET_KEY"
+ALGORITHM = "HS256"
 
 def generate_password(length=10) -> str:
     '''
@@ -158,6 +161,7 @@ def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.Manage
 class Employee():
     def __init__(self, db: Session):
         self.__db: Session = db
+        self.__bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     def __build_emp_out_payload(self, result:Row)->schemas.EmployeeOut:
         '''Builds the EmployeeOut payload'''
@@ -188,9 +192,50 @@ class Employee():
         '''
         Generates secured default password. Default length of the generated password record is 10.
         '''
-        characters: str = string.ascii_letters + string.digits + string.punctuation
+        characters: str = string.ascii_letters + string.digits + "@#*%$!"
         password: SecretStr = ''.join(secrets.choice(characters) for _ in range(length))
         return password
+
+    def authenticate_employee(self, username: EmailStr, password: str) -> models.Employee | bool:
+        '''
+        Authenticates an employee based on the username and password provided.
+        
+        Args:
+            * username: (EmailStr) The email address of the employee.
+            * password: (str) The password of the employee.
+        
+        Returns:
+            * models.Employee: If the authentication is successful.
+            * False: If the authentication fails.
+
+        '''
+
+        stmt: Select = Select(models.Employee).where(models.Employee.email == username)
+        result: Row | None = self.__db.execute(stmt).fetchone()
+        
+        if result == None:
+            return False
+        if not self.__bcrypt_context.verify(password, result.Employee.password_hash):
+            return False
+        return result.Employee
+
+    def create_access_token(self, username: EmailStr, emp_id: int, expires_delta: timedelta) -> str:
+        '''
+        Creates an access token for the employee.
+        
+        Args:
+            * username: (EmailStr) The email address of the employee.
+            * emp_id: (int) The employee ID.
+            * expires_delta: (timedelta) The time delta for the token to expire.
+
+        Returns:
+            * str: The access token.
+        '''
+        encode = {"sub": username, "id": emp_id}
+        expires = datetime.now(UTC) + expires_delta
+        encode.update({"exp": expires})
+        token: str = jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+        return token
 
     def create_employee(self, payload: schemas.EmployeeIn) -> schemas.EmployeePasswordOut:
         '''
@@ -201,8 +246,8 @@ class Employee():
         # Set a secured password
         password:SecretStr = self.__generate_password()
         # Instead of using the set_password method of the model, let's use the CryptContext to hash the password.
-        bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        password_hash:SecretStr = bcrypt_context.hash(password)
+        
+        password_hash:SecretStr = self.__bcrypt_context.hash(password)
         employee.password_hash = password_hash
 
         self.__db.add(employee)
