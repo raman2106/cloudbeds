@@ -5,7 +5,7 @@ from typing import List, Annotated
 from utils import models, schemas, crud
 from utils.database import SessionLocal, engine
 from sqlalchemy.orm.session import Session
-from werkzeug.security import generate_password_hash
+#from werkzeug.security import generate_password_hash
 from utils import auth 
 from utils.auth import get_current_employee
 
