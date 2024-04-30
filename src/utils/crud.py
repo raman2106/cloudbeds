@@ -5,7 +5,7 @@ from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, R
 from itertools import islice
 from typing import List, Dict, Annotated
 import secrets, string
-from werkzeug.security import generate_password_hash
+# from werkzeug.security import generate_password_hash
 import traceback
 from datetime import datetime, date, timedelta, UTC
 from dateutil import tz
@@ -126,22 +126,22 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
     return result
 
-def reset_password(emp_id: int, db: Session) -> schemas.EmployeePasswordOut:
-    '''
-    Resets the employee's password and returns the new password to the caller.
-    Args:
-    * emp_id: (int) Employee ID
-    * db: (Session) SQL alchemy session
-    '''
-    # Create an update statement
-    password:SecretStr = generate_password()
-    stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=generate_password_hash(password))
+# def reset_password(emp_id: int, db: Session) -> schemas.EmployeePasswordOut:
+#     '''
+#     Resets the employee's password and returns the new password to the caller.
+#     Args:
+#     * emp_id: (int) Employee ID
+#     * db: (Session) SQL alchemy session
+#     '''
+#     # Create an update statement
+#     password:SecretStr = generate_password()
+#     stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=generate_password_hash(password))
     
-    db.execute(stmt)
-    db.commit()
-    # Create the return payload
-    result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
-    return result
+#     db.execute(stmt)
+#     db.commit()
+#     # Create the return payload
+#     result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
+#     return result
 
 def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.ManageEmployeeOut:
     '''
