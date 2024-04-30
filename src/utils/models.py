@@ -68,7 +68,7 @@ class Employee(Base):
     
     # Attributes used in relationships
     addresses: Mapped[list["EmployeeAddress"]] = relationship("EmployeeAddress", back_populates="employee")
-
+    roles: Mapped[list["EmployeeRole"]] = relationship("EmployeeRole", back_populates="employee")
     # Define the relationship to the Booking model
     booking: Mapped[list["Booking"]] = relationship("Booking", back_populates="employee")
 
@@ -106,6 +106,28 @@ class EmployeeAddress(Base):
             name='chk_address_type'
         ),
     )
+
+
+class Role(Base):
+    __tablename__ = "Roles"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    name: Mapped[str] = mapped_column(String(45), nullable=False)
+    permissions: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    employees: Mapped[list["EmployeeRole"]] = relationship("EmployeeRole", back_populates="role")
+
+class EmployeeRole(Base):
+    __tablename__ = "EmployeeRoles"
+    id: Mapped[int] = mapped_column(Integer, autoincrement=True, primary_key=True)
+    emp_id: Mapped[int] = mapped_column(Integer, ForeignKey("Employees.emp_id"))
+    role_id: Mapped[int] = mapped_column(Integer, ForeignKey("Roles.id"))
+
+    # Define the back-reference to the Employee model
+    employee: Mapped[Employee] = relationship('Employee', back_populates='roles')
+    # Define the back-reference to the Role model
+    role: Mapped[Role] = relationship('Role', back_populates='employees')
+
+
 
 class RoomType(Base):
     __tablename__ = "RoomTypes"
