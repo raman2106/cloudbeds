@@ -30,7 +30,7 @@ def get_db():
     finally:
         db.close()
 
-
+db_dependency = Annotated[Session, Depends(get_db)]
 #db_dependency = Annotated[Session, Depends(get_db)]
 employee_dependency = Annotated[dict, Depends(get_current_employee)]
 
@@ -47,20 +47,62 @@ async def employee(employee:employee_dependency, db: Session = Depends(get_db)):
 #==========================
 
 # Create operations
-@api.post("/emp/add/", 
-          name="Add Employee",
-          response_model=schemas.EmployeePasswordOut,
-          tags=["Employee"],
-          description='''Creates an employee record in the database.
-          If the provided email exists in the database, returns HTTP 404.''')
-#FIXME: Implement multiple addresses support (correspondence and permanent)
-#FIXME: Implement callback URL
-async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db)):
-    employee: schemas.EmployeeOut|None = crud.get_employee(payload.emp_details.email, db)
-    if employee:
+
+@api.post("/emp/add", 
+             name="Create Employee",
+             response_model= schemas.EmployeePasswordOut,
+             tags=["Employee"],
+             description='''Creates an employee record in the database.
+          If the provided email exists in the database, returns HTTP 404.''',
+             status_code=status.HTTP_201_CREATED
+             )
+async def create_employee(employee:employee_dependency, db: db_dependency,
+                          payload: schemas.EmployeeIn):
+    employee: crud.Employee = crud.Employee(db=db)
+    # Check if employee already exists
+    result: list[schemas.EmployeeOut]|None = employee.list_employees(query_value=payload.emp_details.email)
+    if result:
         raise HTTPException(status_code=400, detail="Email already registered.")
-    result: schemas.EmployeePasswordOut = crud.create_employee(payload, db)
+    result: list[schemas.EmployeeOut]|None = employee.list_employees(query_value=payload.emp_details.phone)
+    if result:
+        raise HTTPException(status_code=400, detail="Phone number already registered.")
+    
+    # Create employee
+    result: schemas.EmployeePasswordOut = employee.create_employee(payload)
     return result
+
+@api.post("/emp/reset-password/{emp_id}",
+             name="Reset Password",
+             response_model= schemas.EmployeePasswordOut,
+             tags=["Employee"],
+             description='''Resets the password of an employee.
+          If the provided email does not exist in the database, returns HTTP 404.''',
+             status_code=status.HTTP_201_CREATED
+             )
+async def reset_password(employee:employee_dependency, emp_id: int, db: db_dependency):
+    employee: crud.Employee = crud.Employee(db=db)
+    # Check if the employee exists
+    result: list[schemas.EmployeeOut]|None = employee.list_employees(query_value=emp_id)
+    if result == None:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    
+    result: schemas.EmployeePasswordOut = employee.reset_password(emp_id)
+    return result
+
+# @api.post("/emp/add/", 
+#           name="Add Employee",
+#           response_model=schemas.EmployeePasswordOut,
+#           tags=["Employee"],
+#           description='''Creates an employee record in the database.
+#           If the provided email exists in the database, returns HTTP 404.''')
+# #FIXME: Implement multiple addresses support (correspondence and permanent)
+# #FIXME: Implement callback URL
+# async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db)):
+#     employee: schemas.EmployeeOut|None = crud.get_employee(payload.emp_details.email, db)
+#     if employee:
+#         raise HTTPException(status_code=400, detail="Email already registered.")
+#     result: schemas.EmployeePasswordOut = crud.create_employee(payload, db)
+#     return result
 # Read operations
 @api.get("/get_emp/",
          name="Get Employee",
@@ -69,7 +111,7 @@ async def add_employee(payload: schemas.EmployeeIn, db: Session = Depends(get_db
          description= '''Returns the details of an employee for the provided employee id or email. 
          If employee isn't found in the database, it returns HTTP 404.'''
          )
-async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
+async def get_employee(employee:employee_dependency, id: int|EmailStr,  db: Session = Depends(get_db)):
     employee: schemas.EmployeeOut|None = crud.get_employee(id, db)
     if employee:
         return employee
@@ -86,7 +128,7 @@ async def get_employee(id: int|EmailStr,  db: Session = Depends(get_db)):
          description= '''Returns the list of all employees from the database.
          If the database is empty, it returns HTTP 404.'''
          )
-async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int = 20, query_value: int|None = None):
+async def list_employee(employee:employee_dependency, db: Session = Depends(get_db), skip: int = 0, limit: int = 20, query_value: int|None = None):
     cb_employee: crud.Employee = crud.Employee(db=db)
 
     employees: List[schemas.EmployeeOut]|None = cb_employee.list_employees(skip, limit, query_value)
@@ -97,20 +139,20 @@ async def list_employee(db: Session = Depends(get_db), skip: int = 0, limit: int
         raise HTTPException(status_code=404, detail="There are no employees in the database.")        
 
 # Update operations
-@api.put("/emp/password_reset/{emp_id}",
-         name="Reset Employee Password",
-         response_model=schemas.EmployeePasswordOut,
-         tags=["Employee"],
-         description= '''Resets the password of the specified employee. 
-         If employee ID isn't found in the database, it returns HTTP 404.'''
-         )
-async def reset_password(emp_id: int, db: Session = Depends(get_db)):
-    employee: schemas.EmployeeOut|None = crud.get_employee(emp_id, db)
-    if employee:
-        result: schemas.EmployeePasswordOut = crud.reset_password(emp_id, db)        
-        return result
-    else:
-        raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
+# @api.put("/emp/password_reset/{emp_id}",
+#          name="Reset Employee Password",
+#          response_model=schemas.EmployeePasswordOut,
+#          tags=["Employee"],
+#          description= '''Resets the password of the specified employee. 
+#          If employee ID isn't found in the database, it returns HTTP 404.'''
+#          )
+# async def reset_password(emp_id: int, db: Session = Depends(get_db)):
+#     employee: schemas.EmployeeOut|None = crud.get_employee(emp_id, db)
+#     if employee:
+#         result: schemas.EmployeePasswordOut = crud.reset_password(emp_id, db)        
+#         return result
+#     else:
+#         raise HTTPException(status_code=400, detail="Provided employee ID doesn't exist.")
 
 @api.put("/emp/manage/{emp_id}",
          name="Manage employee",
@@ -119,7 +161,7 @@ async def reset_password(emp_id: int, db: Session = Depends(get_db)):
          description= '''Sets the activation status of the specified employee. 
          If employee ID isn't found in the database, it returns HTTP 404.'''
          )
-async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(get_db)):
+async def manage_employee(employee:employee_dependency, emp_id: int, is_active: bool, db: Session = Depends(get_db)):
     employee: schemas.EmployeeOut|None = crud.get_employee(emp_id, db)
     if employee:
         result: schemas.ManageEmployeeOut = crud.manage_employee(emp_id, is_active, db)        
@@ -138,7 +180,7 @@ async def manage_employee(emp_id: int, is_active: bool, db: Session = Depends(ge
             tags=["Government ID"],
             description='''Adds a new government ID type to the database.
             If the government ID type already exists, it returns HTTP 400.''')
-async def add_gov_id(payload: schemas.GovtIdTypeBase , db: Session = Depends(get_db)):
+async def add_gov_id(employee:employee_dependency, payload: schemas.GovtIdTypeBase , db: Session = Depends(get_db)):
     Booking: crud.Booking = crud.Booking(db)
     try:
         result: schemas.GenericMessage = Booking.add_supported_govt_id_type(payload)
@@ -158,7 +200,7 @@ async def add_gov_id(payload: schemas.GovtIdTypeBase , db: Session = Depends(get
             description= '''Returns the list of all supported government IDs from the database.
             If the database is empty, it returns HTTP 404.'''
             )
-async def list_gov_id(db: Session = Depends(get_db)):
+async def list_gov_id(employee:employee_dependency, db: Session = Depends(get_db)):
     try:
         Booking: crud.Booking = crud.Booking(db)
         govt_ids: list[schemas.GovtIdTypeBase] = Booking.get_supported_govt_id_types()
@@ -177,7 +219,7 @@ async def list_gov_id(db: Session = Depends(get_db)):
             tags=["Booking"],
             description='''Creates a booking record in the database.
             If a booking fails, returns HTTP 500.''')
-def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
+async def add_booking(employee:employee_dependency, payload: schemas.BookingIn, db: Session = Depends(get_db)):
         booking: crud.Booking = crud.Booking(db)
         try:
             result: schemas.BookingResult = booking.add_booking(payload)
@@ -196,7 +238,7 @@ def add_booking(payload: schemas.BookingIn, db: Session = Depends(get_db)):
             tags=["Booking"],
             description='''Sets the status of the specified booking to Ongoing.
             If the booking isn't found in the database, it returns HTTP 404.''')
-def set_booking_status(booking_id: str, db: Session = Depends(get_db)):
+async def set_booking_status(employee:employee_dependency, booking_id: str, db: Session = Depends(get_db)):
     booking: crud.Booking = crud.Booking(db)
     try:
         result: schemas.GenericMessage = booking.set_booking_status(booking_id)
@@ -215,7 +257,7 @@ def set_booking_status(booking_id: str, db: Session = Depends(get_db)):
             tags=["Booking"],
             description= '''Returns the list of all bookings from the database.
             If the database is empty, it returns HTTP 404.''')
-def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20, booking_id: str |None = None):
+async def list_bookings(employee:employee_dependency, db: Session = Depends(get_db), skip: int = 0, limit: int = 20, booking_id: str |None = None):
     booking: crud.Booking = crud.Booking(db)
     try:
         bookings: list[schemas.BookingOut] = booking.list_bookings(skip, limit, booking_id)
@@ -233,7 +275,7 @@ def list_bookings(db: Session = Depends(get_db), skip: int = 0, limit: int = 20,
             tags=["Booking"],
             description='''Updates the specified booking.
             If the booking isn't found in the database, it returns HTTP 404.''')
-def update_booking(booking_id: str, payload: schemas.BookingIn, db: Session = Depends(get_db)):
+async def update_booking(employee:employee_dependency, booking_id: str, payload: schemas.BookingIn, db: Session = Depends(get_db)):
     booking: crud.Booking = crud.Booking(db)
     try:
         result: schemas.GenericMessage = booking.update_booking(booking_id, payload)
@@ -251,7 +293,7 @@ def update_booking(booking_id: str, payload: schemas.BookingIn, db: Session = De
             tags=["Booking"],
             description='''Cancels the specified booking.
             If the booking isn't found in the database, it returns HTTP 404.''')
-def cancel_booking(booking_id: str, db: Session = Depends(get_db)):
+async def cancel_booking(employee:employee_dependency, booking_id: str, db: Session = Depends(get_db)):
     booking: crud.Booking = crud.Booking(db)
     try:
         result: schemas.GenericMessage = booking.cancel_booking(booking_id)
@@ -273,7 +315,7 @@ def cancel_booking(booking_id: str, db: Session = Depends(get_db)):
          description= '''Returns the details of a customer from the database based on the provided query, which can be either a phone number or an email.
          If the customer isn't available in the database, it returns HTTP 404.'''
          )
-async def get_customer(query: str, db: Session = Depends(get_db)):
+async def get_customer(employee:employee_dependency, query: str, db: Session = Depends(get_db)):
     customer: crud.Customer = crud.Customer(db)
     try:
         customers: schemas.CustomerOut = customer.get_customer(query)
@@ -292,7 +334,7 @@ async def get_customer(query: str, db: Session = Depends(get_db)):
           tags=["Customer"],
           description='''Creates a customer record in the database.
           If the provided email exists in the database, returns HTTP 404.''')
-async def add_customer(payload: schemas.CustomerIn, db: Session = Depends(get_db)):
+async def add_customer(employee:employee_dependency, payload: schemas.CustomerIn, db: Session = Depends(get_db)):
     customer: crud.Customer = crud.Customer(db)
     try:
         result: schemas.CreateCustomerResult = customer.add_customer(payload)
@@ -312,7 +354,7 @@ async def add_customer(payload: schemas.CustomerIn, db: Session = Depends(get_db
          description= '''Returns the list of all customers from the database.
          If the database is empty, it returns HTTP 404.'''
          )
-async def list_customers(db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
+async def list_customers(employee:employee_dependency, db: Session = Depends(get_db), skip: int = 0, limit: int = 20):
     customer: crud.Customer = crud.Customer(db)
     try:
         customers: List[schemas.CustomerOut] = customer.list_customers(skip, limit)
@@ -332,7 +374,7 @@ async def list_customers(db: Session = Depends(get_db), skip: int = 0, limit: in
           description='''Updates the details of the specified customer.
           If the customer isn't found in the database, it returns HTTP 404.'''
           )
-async def update_customer(payload: schemas.CustomerOut, db: Session = Depends(get_db)):
+async def update_customer(employee:employee_dependency, payload: schemas.CustomerOut, db: Session = Depends(get_db)):
     customer: crud.Customer = crud.Customer(db)
     try:
         result: schemas.GenericMessage = customer.update_customer(payload)
@@ -357,7 +399,7 @@ async def update_customer(payload: schemas.CustomerOut, db: Session = Depends(ge
             If the room type isn't found in the database, it returns HTTP 400.''',
             tags=["Room"]
             )
-async def delete_room_type(room_type: str, db: Session = Depends(get_db)):
+async def delete_room_type(employee:employee_dependency, room_type: str, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_types("delete", room_type)
@@ -376,7 +418,7 @@ async def delete_room_type(room_type: str, db: Session = Depends(get_db)):
             If the room state isn't found in the database, it returns HTTP 400.''',
             tags=["Room"]
             )
-async def delete_room_state(room_state: str, db: Session = Depends(get_db)):
+async def delete_room_state(employee:employee_dependency, room_state: str, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_states("delete", room_state)
@@ -395,7 +437,7 @@ async def delete_room_state(room_state: str, db: Session = Depends(get_db)):
             description='''Deletes the specified room from the database.
             If the room isn't found in the database, it returns HTTP 400.''',
             )
-async def delete_room(room_number: str, db: Session = Depends(get_db)):
+async def delete_room(employee:employee_dependency, room_number: str, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.delete_room(room_number)
@@ -414,7 +456,7 @@ async def delete_room(room_number: str, db: Session = Depends(get_db)):
     description= '''Returns the list of rooms from the database that match the criteria specified in the payload.
     If the database is empty, it returns HTTP 404.'''
     )
-async def list_rooms(db: Session = Depends(get_db), \
+async def list_rooms(employee:employee_dependency, db: Session = Depends(get_db), \
                      room_number: str | None = None, \
                      room_type: str | None = None, \
                      room_state: str | None = None, \
@@ -460,7 +502,7 @@ async def list_rooms(db: Session = Depends(get_db), \
          description= '''Returns the list of all room types from the database.
          If the database is empty, it returns HTTP 404.'''
          )
-async def list_room_types(db: Session = Depends(get_db)):
+async def list_room_types(employee:employee_dependency, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     room_types: schemas.RoomTypeBase|None = room.get_supported_room_types()
     if room_types:
@@ -475,7 +517,7 @@ async def list_room_types(db: Session = Depends(get_db)):
             description= '''Returns the list of all room states from the database.
             If the database is empty, it returns HTTP 404.'''
             )
-async def list_room_states(db: Session = Depends(get_db)):
+async def list_room_states(employee:employee_dependency, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     room_states: schemas.RoomStateBase|None = room.get_supported_room_states()
     if room_states:
@@ -490,7 +532,7 @@ async def list_room_states(db: Session = Depends(get_db)):
           description='''Adds a new room to the database. 
           If the room number already exists, it returns HTTP 400.'''
           )
-async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+async def add_room(employee:employee_dependency, payload: schemas.RoomBase, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.add_room(room_number=payload.room_number, room_type=payload.room_type, room_state=payload.room_state)
@@ -509,7 +551,7 @@ async def add_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
           description='''Adds a new room type to the database. 
           If the room type already exists, it returns HTTP 400.'''
           )
-async def add_room_type(payload: schemas.RoomTypeIn, db: Session = Depends(get_db)):
+async def add_room_type(employee:employee_dependency, payload: schemas.RoomTypeIn, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_types("add", payload.room_type)
@@ -528,7 +570,7 @@ async def add_room_type(payload: schemas.RoomTypeIn, db: Session = Depends(get_d
           description='''Adds a new room state to the database. 
           If the room state already exists, it returns HTTP 400.'''
           )
-async def add_room_state(payload: schemas.RoomTypeIn, db: Session = Depends(get_db)):
+async def add_room_state(employee:employee_dependency, payload: schemas.RoomTypeIn, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_states("add", payload.room_type)
@@ -547,7 +589,7 @@ async def add_room_state(payload: schemas.RoomTypeIn, db: Session = Depends(get_
             description='''Updates the specified room.
             If the room number doesn't exists, it returns HTTP 400.'''
             )
-async def update_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
+async def update_room(employee:employee_dependency, payload: schemas.RoomBase, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.update_room(payload.room_number, payload.room_type, payload.room_state)
@@ -566,7 +608,7 @@ async def update_room(payload: schemas.RoomBase, db: Session = Depends(get_db)):
          description='''Updates the specified room type.
          If the room state doesn't exists, it returns HTTP 400.'''
          ) 
-async def update_room_type(room_type: str, new_room_type: str, db: Session = Depends(get_db)):
+async def update_room_type(employee:employee_dependency, room_type: str, new_room_type: str, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_types("update", room_type, new_room_type)
@@ -585,7 +627,7 @@ async def update_room_type(room_type: str, new_room_type: str, db: Session = Dep
             description='''Updates the specified room state.
             If the room state doesn't exists, it returns HTTP 400.'''
             )
-async def update_room_state(room_state: str, new_room_state: str, db: Session = Depends(get_db)):
+async def update_room_state(employee:employee_dependency, room_state: str, new_room_state: str, db: Session = Depends(get_db)):
     room: crud.Room = crud.Room(db)
     try:
         result: schemas.GenericMessage = room.manage_room_states("update", room_state, new_room_state)
