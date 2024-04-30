@@ -3,7 +3,7 @@ from . import models, schemas, cloudbeds_exceptions
 from pydantic import EmailStr, SecretStr
 from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, ResultProxy, Update
 from itertools import islice
-from typing import List, Dict
+from typing import List, Dict, Annotated
 import secrets, string
 from werkzeug.security import generate_password_hash
 import traceback
@@ -11,9 +11,15 @@ from datetime import datetime, date, timedelta, UTC
 from dateutil import tz
 from passlib.context import CryptContext
 from jose import jwt, JWTError
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from dotenv import load_dotenv
+import os
 
-SECRET_KEY = "JWT_SECRET_KEY"
-ALGORITHM = "HS256"
+# Load environmental variables from .env
+load_dotenv()
+SECRET_KEY: SecretStr = os.getenv("SECRET_KEY")
+ALGORITHM: str = os.getenv("ALGORITHM")
 
 def generate_password(length=10) -> str:
     '''
@@ -162,6 +168,7 @@ class Employee():
     def __init__(self, db: Session):
         self.__db: Session = db
         self.__bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
 
     def __build_emp_out_payload(self, result:Row)->schemas.EmployeeOut:
         '''Builds the EmployeeOut payload'''
@@ -195,6 +202,9 @@ class Employee():
         characters: str = string.ascii_letters + string.digits + "@#*%$!"
         password: SecretStr = ''.join(secrets.choice(characters) for _ in range(length))
         return password
+
+    def __get_oauth2_bearer(self):
+        return self.__oauth2_bearer
 
     def authenticate_employee(self, username: EmailStr, password: str) -> models.Employee | bool:
         '''
@@ -328,7 +338,6 @@ class Employee():
         # Create the return payload
         result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
         return result
-
 
 class RoomType():
     def __init__(self, db: Session):

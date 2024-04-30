@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-from fastapi import FastAPI, Depends, HTTPException
-from typing import List
+from fastapi import FastAPI, Depends, HTTPException, status
+from typing import List, Annotated
 from utils import models, schemas, crud
 from utils.database import SessionLocal, engine
 from sqlalchemy.orm.session import Session
 from werkzeug.security import generate_password_hash
-from utils import auth
+from utils import auth 
+from utils.auth import get_current_employee
 
 #Used in Test endpoints
 from pydantic import EmailStr
@@ -29,10 +30,18 @@ def get_db():
     finally:
         db.close()
 
+
+#db_dependency = Annotated[Session, Depends(get_db)]
+employee_dependency = Annotated[dict, Depends(get_current_employee)]
+
 #==========================
 # Admin endpoints
 #==========================
-
+@api.get("/", status_code=status.HTTP_200_OK)
+async def employee(employee:employee_dependency, db: Session = Depends(get_db)):
+    if employee is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed.")
+    return {"employee": employee}
 #==========================
 # Employee endpoints
 #==========================
