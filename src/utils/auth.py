@@ -73,14 +73,14 @@ async def reset_password(emp_id: int, db: db_dependency):
 async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                                  db: db_dependency):
     cb_employee: crud.Employee = crud.Employee(db=db)
-    employee: models.Employee =  cb_employee.authenticate_employee(form_data.username, form_data.password)
+    employee: models.Employee =  cb_employee.authenticate_employee(form_data.username, form_data.password,)
     if not employee:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-    emp_roles: list[str] = employee.roles
-    token = cb_employee.create_access_token(employee.email, employee.emp_id, expires_delta=timedelta(minutes=30))
+    emp_roles: list[str] | None = [assigned_role.role.name for assigned_role in employee.roles]
+    token = cb_employee.create_access_token(employee.email, employee.emp_id, expires_delta=timedelta(minutes=30), roles=emp_roles)
 
     return {"access_token": token,
             "token_type": "bearer"

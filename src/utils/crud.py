@@ -219,7 +219,7 @@ class Employee():
             return False
         return result.Employee
 
-    def create_access_token(self, username: EmailStr, emp_id: int, expires_delta: timedelta) -> str:
+    def create_access_token(self, username: EmailStr, emp_id: int, expires_delta: timedelta, roles: list[str]|None = None) -> str:
         '''
         Creates an access token for the employee.
         
@@ -231,7 +231,7 @@ class Employee():
         Returns:
             * str: The access token.
         '''
-        encode = {"sub": username, "id": emp_id}
+        encode = {"sub": username, "id": emp_id, "role": roles}
         expires = datetime.now(UTC) + expires_delta
         encode.update({"exp": expires})
         token: str = jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
