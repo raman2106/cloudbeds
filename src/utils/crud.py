@@ -3,12 +3,23 @@ from . import models, schemas, cloudbeds_exceptions
 from pydantic import EmailStr, SecretStr
 from sqlalchemy import select, Row, or_, update, Delete, Insert, Select, and_, ResultProxy, Update
 from itertools import islice
-from typing import List, Dict
+from typing import List, Dict, Annotated
 import secrets, string
 from werkzeug.security import generate_password_hash
 import traceback
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, UTC
 from dateutil import tz
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from dotenv import load_dotenv
+import os
+
+# Load environmental variables from .env
+load_dotenv()
+SECRET_KEY: SecretStr = os.getenv("SECRET_KEY")
+ALGORITHM: str = os.getenv("ALGORITHM")
 
 def generate_password(length=10) -> str:
     '''
@@ -99,9 +110,9 @@ def create_employee(payload: schemas.EmployeeIn, db: Session) -> schemas.Employe
     '''
     # Create a record in the Employees table
     employee: models.Employee = models.Employee(**payload.emp_details.model_dump())
-    # Set a secured password
+    # Set a secured password string
     password:SecretStr = generate_password()
-    employee.set_password(password)
+    employee.set_password(password)    
     db.add(employee)
     db.commit()
     #Refresh the instance so that it contains any new data from the DB, such as generated record ID.
@@ -152,6 +163,181 @@ def manage_employee(emp_id:int, is_active: bool, db: Session)  -> schemas.Manage
     employee: Row = db.execute(stmt).fetchone()
     result: schemas.ManageEmployeeOut = schemas.ManageEmployeeOut.model_validate(employee._asdict())
     return result
+
+class Employee():
+    def __init__(self, db: Session):
+        self.__db: Session = db
+        self.__bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+
+    def __build_emp_out_payload(self, result:Row)->schemas.EmployeeOut:
+        '''Builds the EmployeeOut payload'''
+        employee_data: dict[str, str] = result.Employee.__dict__
+        employee_data = dict(islice(employee_data.items(), 1, len(employee_data.items())))
+        emp_id: int = employee_data.pop("emp_id")
+        # We don't want to expose the password hash through this method
+        del employee_data["password_hash"]
+        # EmployeeOut payload doesn't accept the following attributes: current_login_at, current_login_ip, last_login_at, last_login_ip, login_count
+        del employee_data["current_login_at"]
+        del employee_data["current_login_ip"]
+        del employee_data["last_login_at"]
+        del employee_data["last_login_ip"]
+        del employee_data["login_count"]
+
+        # Use the backref to get the employee's address
+        employee_address: dict[str, str] = result.Employee.addresses[0].__dict__
+        employee_address = dict(islice(employee_address.items(), 1, len(employee_address.items())))
+        # Remove unnecessary attributes from the employee address
+        del employee_address["emp_id"]
+        del employee_address["address_id"]
+        
+        # Generate the EmployeeOut payload
+        employee: schemas.EmployeeOut = schemas.EmployeeOut(emp_id=emp_id, emp_details=employee_data, emp_address=employee_address)
+        return employee
+
+    def __generate_password(self, length=10) -> str:
+        '''
+        Generates secured default password. Default length of the generated password record is 10.
+        '''
+        characters: str = string.ascii_letters + string.digits + "@#*%$!"
+        password: SecretStr = ''.join(secrets.choice(characters) for _ in range(length))
+        return password
+
+    def __get_oauth2_bearer(self):
+        return self.__oauth2_bearer
+
+    def authenticate_employee(self, username: EmailStr, password: str) -> models.Employee | bool:
+        '''
+        Authenticates an employee based on the username and password provided.
+        
+        Args:
+            * username: (EmailStr) The email address of the employee.
+            * password: (str) The password of the employee.
+        
+        Returns:
+            * models.Employee: If the authentication is successful.
+            * False: If the authentication fails.
+
+        '''
+
+        stmt: Select = Select(models.Employee).where(models.Employee.email == username)
+        result: Row | None = self.__db.execute(stmt).fetchone()
+        
+        if result == None:
+            return False
+        if not self.__bcrypt_context.verify(password, result.Employee.password_hash):
+            return False
+        return result.Employee
+
+    def create_access_token(self, username: EmailStr, emp_id: int, expires_delta: timedelta, roles: list[str]|None = None) -> str:
+        '''
+        Creates an access token for the employee.
+        
+        Args:
+            * username: (EmailStr) The email address of the employee.
+            * emp_id: (int) The employee ID.
+            * expires_delta: (timedelta) The time delta for the token to expire.
+
+        Returns:
+            * str: The access token.
+        '''
+        encode = {"sub": username, "id": emp_id, "role": roles}
+        expires = datetime.now(UTC) + expires_delta
+        encode.update({"exp": expires})
+        token: str = jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+        return token
+
+    def create_employee(self, payload: schemas.EmployeeIn) -> schemas.EmployeePasswordOut:
+        '''
+        Creates an employee record in the database.
+        '''
+        # Create a record in the Employees table
+        employee: models.Employee = models.Employee(**payload.emp_details.model_dump())
+        # Set a secured password
+        password:SecretStr = self.__generate_password()
+        # Instead of using the set_password method of the model, let's use the CryptContext to hash the password.
+        
+        password_hash:SecretStr = self.__bcrypt_context.hash(password)
+        employee.password_hash = password_hash
+
+        self.__db.add(employee)
+        self.__db.commit()
+        #Refresh the instance so that it contains any new data from the DB, such as generated record ID.
+        self.__db.refresh(employee)
+        # Create a record in the EmployeeAddresses table
+        address: models.EmployeeAddress = models.EmployeeAddress(**payload.emp_address.model_dump(exclude="emp_id"))
+        address.emp_id = employee.emp_id
+        self.__db.add(address)
+        self.__db.commit()
+        # Create the return payload
+        result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=employee.emp_id, password=password)
+        return result
+
+    def list_employees(self, skip: int = 0, limit: int = 10, query_value: int|EmailStr|str|None = None) -> List[schemas.EmployeeOut]|None:
+        '''
+        Returns the list of all employees from the database. If the database is empty, it returns [None].
+        By default, it returns 10 records at a time.
+        Args:
+            * db: SQL Alchemy session object
+            * skip: (int) Starting record number
+            * limit: (int) End record number
+        '''
+        try:
+            # If caller has provided a query value, get the employee details based on the query value.
+            if query_value:
+                if isinstance(query_value, int):
+                    stmt: Select = Select(models.Employee).where(models.Employee.emp_id == query_value)
+                elif EmailStr._validate(query_value):
+                    stmt: Select = Select(models.Employee).where(models.Employee.email == query_value)
+                
+                result: Row|None = self.__db.execute(stmt).fetchone()
+                
+                if result == None:
+                    return None
+                
+                employee: schemas.EmployeeOut = self.__build_emp_out_payload(result)
+                return [employee]
+                
+            # Return the list of employees per the specified offset
+            stmt: Select = Select(models.Employee).limit(limit).offset(skip)
+            result: List[Row]|None = self.__db.execute(stmt).fetchall()
+            # If there are no employee records in the database, raise an error.
+            if result == None:
+                raise ValueError("No employee records found in the database.")
+            # Build the EmployeeOut payload 
+            employees:List[schemas.EmployeeOut] = [self.__build_emp_out_payload(employee) for employee in result]
+            return employees
+        except Exception as e:
+            traceback.print_exc()
+            match e.__class__.__name__:
+                case "ValueError":
+                    raise ValueError(f"{e.__class__.__name__}: {e}")
+                case _:
+                    raise cloudbeds_exceptions.DBError(f"{e.__class__.__name__}:DB operation failed.")
+
+    def reset_password(self, emp_id: int) -> schemas.EmployeePasswordOut:
+        '''
+        Resets the employee's password and returns the new password to the caller.
+        
+        Args:
+        * emp_id: (int) Employee ID
+        
+        Returns:
+        * schemas.EmployeePasswordOut: The employee ID and the new password.
+        '''
+        # Set a secured password
+        password:SecretStr = self.__generate_password()
+        password_hash:SecretStr = self.__bcrypt_context.hash(password)
+
+        # Create an update statement
+
+        stmt = update(models.Employee).where(models.Employee.emp_id == emp_id).values(password_hash=password_hash)
+        
+        self.__db.execute(stmt)
+        self.__db.commit()
+        # Create the return payload
+        result: schemas.EmployeePasswordOut = schemas.EmployeePasswordOut(emp_id=emp_id, password=password)
+        return result
 
 class RoomType():
     def __init__(self, db: Session):
