@@ -3,7 +3,7 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String, DateTime, CheckCons
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from .database import Base
 from typing import Optional
-from werkzeug.security import generate_password_hash, check_password_hash
+# from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -74,11 +74,11 @@ class Employee(Base):
 
     # Info on password hashing:
     # https://dev.to/kaelscion/authentication-hashing-in-sqlalchemy-1bem
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    # def set_password(self, password):
+    #     self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    # def check_password(self, password):
+    #     return check_password_hash(self.password_hash, password)
 
 class EmployeeAddress(Base):
     __tablename__ = "EmployeeAddresses"
