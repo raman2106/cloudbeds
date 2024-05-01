@@ -1,8 +1,9 @@
 import React from "react";
-import {Heading, Flex, Divider} from "@chakra-ui/react";
+import {Heading, Flex, Box} from "@chakra-ui/react";
 
-const Header = () => {
-    return (
+const Header = ({ onOpen, btnRef }) => {
+  return (
+    <Box as="header" pos="relative" zIndex="2" bg="gray.800" p="2">
         <Flex
             as="nav"
             align="center"
@@ -23,7 +24,8 @@ const Header = () => {
                     </Heading>
                 </Flex>
         </Flex>
-    );
+    </Box>
+  );
 };
 
 export default Header;

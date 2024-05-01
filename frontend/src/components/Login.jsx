@@ -17,7 +17,7 @@ import { Logo } from './Logo'
 import { PasswordField } from './PasswordField'
 import { useState } from 'react';
 
-const Login = () => {
+const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -44,7 +44,8 @@ const Login = () => {
     if (response.ok) {
       // Save the auth token. Save the auth token in local storage
       localStorage.setItem('jwt', data.access_token);
-      console.log(data.access_token);
+      // Set isLoggedIn to true after successful login
+      onLogin();
     } else {
       // Handle error. You might want to set an error message in state and display it to the user.
       console.error(data.detail);
