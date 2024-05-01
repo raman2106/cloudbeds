@@ -8,6 +8,7 @@ from sqlalchemy.orm.session import Session
 #from werkzeug.security import generate_password_hash
 from utils import auth 
 from utils.auth import get_current_employee
+from fastapi.middleware.cors import CORSMiddleware
 
 #Used in Test endpoints
 from pydantic import EmailStr
@@ -20,6 +21,19 @@ models.Base.metadata.create_all(bind=engine)
 
 api = FastAPI(title="CloudBeds API", version="1.0.0" )
 api.include_router(auth.router)
+
+origins = [
+    "http://localhost:3000",  # React app
+    "http://localhost:8000",  # FastAPI server (change if needed)
+]
+
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Dependency
