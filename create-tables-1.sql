@@ -251,9 +251,9 @@ CREATE TABLE Bookings(
     booking_status_id INT DEFAULT 1,
     KEY `fk_bk_booking_status_id` (`booking_status_id`),
     CONSTRAINT `fk_bk_booking_status_id` FOREIGN KEY (`booking_status_id`) REFERENCES `BookingStatuses` (`id`),
-    govt_id_type INT NOT NULL,
-    KEY `fk_bk_govt_id_type` (`govt_id_type`),
-    CONSTRAINT `fk_bk_govt_id_type` FOREIGN KEY (`govt_id_type`) REFERENCES `GovtIdTypes` (`id`),    
+    govt_id_type_id INT NOT NULL,
+    KEY `fk_bk_govt_id_type_id` (`govt_id_type_id`),
+    CONSTRAINT `fk_bk_govt_id_type_id` FOREIGN KEY (`govt_id_type_id`) REFERENCES `GovtIdTypes` (`id`),    
     govt_id_num VARCHAR(45) NOT NULL,
     -- Government ID expirt date
     exp_date DATE,
