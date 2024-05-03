@@ -22,15 +22,17 @@ const Sidebar = ({ onClose }) => {
         <h2>
             <AccordionButton>
             <Box flex="1" textAlign="left" p={0}>
-                Dashboard
+                <RouterLink to="/dashboard" onClick={onClose}>
+                    Dashboard
+                </RouterLink>
             </Box>
             </AccordionButton>
         </h2>
-        <AccordionPanel pb={4}>
+        {/* <AccordionPanel pb={4}>
             <RouterLink to="/dashboard" onClick={onClose}>
             Dashboard
             </RouterLink>
-        </AccordionPanel>
+        </AccordionPanel> */}
         </AccordionItem>
         <AccordionItem>
         <h2>

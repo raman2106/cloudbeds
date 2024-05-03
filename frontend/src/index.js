@@ -8,7 +8,7 @@ import Header from "./components/Header";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard"; // Import Dashboard component
 import Sidebar from "./components/Sidebar"; // Import Sidebar component
-
+import FormBooking from "./components/FormBooking";
 
 function App() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -30,6 +30,9 @@ function App() {
             path="/login" element={isLoggedIn ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />} />
           <Route 
             path="/dashboard" element={isLoggedIn ? <Dashboard /> : <Navigate to="/login" />} />
+          <Route 
+            path="/create-booking" 
+            element={isLoggedIn ? <FormBooking /> : <Navigate to="/login" />} />
         </Routes>
       </Router>
     </ChakraProvider>
