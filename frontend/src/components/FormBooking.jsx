@@ -7,14 +7,13 @@ import {
     Grid,
     Button,
     Textarea,
-    NumberInput,
-    NumberInputField,
     Select,
     Stack,
     Heading,
     RadioGroup,
     Radio,
-    Flex
+    Flex,
+    ButtonGroup,
 } from '@chakra-ui/react'
 
 
@@ -198,9 +197,16 @@ const FormBooking = () => {
                     </Box>
                 </Stack>
             </Box>
-            <Button mt={4} colorScheme="teal" type="submit">
-                Submit
-            </Button>
+            <Flex justify="flex-end">
+                <ButtonGroup mt={4}>
+                    <Button colorScheme="teal" type="submit">
+                        Submit
+                    </Button>
+                    <Button type="reset">
+                        Cancel
+                    </Button>
+                </ButtonGroup>            
+            </Flex>
         </Box>
     )
 }

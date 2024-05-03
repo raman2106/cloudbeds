@@ -61,17 +61,25 @@ const Sidebar = ({ onClose }) => {
         <h2>
             <AccordionButton>
             <Box flex="1" textAlign="left">
-                Settings
+                Employees
             </Box>
+            <AccordionIcon />
             </AccordionButton>
         </h2>
         <AccordionPanel pb={4}>
-            <RouterLink to="/settings" onClick={onClose}>
-            Settings
+            <VStack align="start" spacing={2}>
+            <RouterLink to="/create-employee" onClick={onClose}>
+                Create Employee
             </RouterLink>
+            <RouterLink to="/update-employee" onClick={onClose}>
+                Update Employee
+            </RouterLink>
+            <RouterLink to="/manage-employee" onClick={onClose}>
+                Manage Employee
+            </RouterLink>
+            </VStack>
         </AccordionPanel>
         </AccordionItem>
-        {/* Add more AccordionItems as needed */}
     </Accordion>
     </Box>
   );
