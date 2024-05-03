@@ -10,6 +10,7 @@ from utils import auth
 from utils.auth import get_current_employee
 from fastapi.middleware.cors import CORSMiddleware
 
+
 #Used in Test endpoints
 from pydantic import EmailStr
 import uvicorn
@@ -657,3 +658,4 @@ async def update_room_state(employee:employee_dependency, room_state: str, new_r
 if __name__ == "__main__":
     # USed to run the code in debug mode.
     uvicorn.run(api, host="0.0.0.0", port=8080)
+

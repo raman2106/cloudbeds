@@ -442,6 +442,17 @@ class RoomType():
         result: list[Row] = self.db.execute(stmt).fetchall()
         return result
 
+    def _get_supported_room_states_with_id(self) -> List[Row]:
+        '''
+        Returns the supported room states with their IDs.
+
+        Returns:
+            list: A list of supported room states with their IDs.
+        '''
+        stmt = select(models.RoomState.id, models.RoomState.room_state)
+        result: list[Row] = self.db.execute(stmt).fetchall()
+        return result
+
     def _verify_room_type(self, room_type: str) -> bool:
         '''
         Verifies if the supplied room type exists in the database.
@@ -778,13 +789,13 @@ class Room(RoomType, RoomState):
             # If room_type and room_state is available in DB, get the room_type_id and state_id.
             if room_type:
                 if self._verify_room_type(room_type):
-                    room_type: (int) = [row.id for row in self._get_supported_room_types_with_id() \
+                    room_type: (int) = [row.id for row in self._get_supported_room_states_with_id() \
                                         if row.room_type.lower() == room_type.lower()][0]
                 else:
                     raise ValueError(f"{room_type} doesn't exist in the database.")
             if room_state:
                 if self._verify_room_state(room_state):
-                    room_state: (int) = [row.id for row in self.__get_supported_booking_statuses_with_id() \
+                    room_state: (int) = [row.id for row in self._get_supported_room_states_with_id() \
                                         if row.room_state.lower() == room_state.lower()][0]
                 else:
                     raise ValueError(f"{room_state} doesn't exist in the database.")
