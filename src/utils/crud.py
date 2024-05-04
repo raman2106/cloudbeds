@@ -691,7 +691,7 @@ class Room(RoomType, RoomState):
             room_types: list[Row] = self._get_supported_room_types_with_id()
             r_type_id: int = [row.id for row in room_types if row.room_type == room_type][0]
             # Get state_id by using the room_state
-            room_states: list[Row] = self.__get_supported_booking_statuses_with_id()
+            room_states: list[Row] = self._get_supported_room_states_with_id()
             state_id: int = [row.id for row in room_states if row.room_state == room_state][0]
             # Insert the room record
             stmt = Insert(models.Room).values(room_number=room_number, r_type_id=r_type_id, state_id=state_id)

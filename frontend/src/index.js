@@ -10,6 +10,8 @@ import Dashboard from "./components/Dashboard"; // Import Dashboard component
 import Sidebar from "./components/Sidebar"; // Import Sidebar component
 import FormBooking from "./components/FormBooking";
 import FormEmployee from "./components/FormEmployee";
+import ManageEmployee from "./components/ManageEmployee";
+import ManageRooms from "./components/ManageRooms";
 
 function App() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -36,7 +38,13 @@ function App() {
             element={isLoggedIn ? <FormBooking /> : <Navigate to="/login" />} />
           <Route 
             path="/create-employee" 
-            element={isLoggedIn ? <FormEmployee /> : <Navigate to="/login" />} />            
+            element={isLoggedIn ? <FormEmployee /> : <Navigate to="/login" />} />
+          <Route 
+            path="/manage-employee" 
+            element={isLoggedIn ? <ManageEmployee /> : <Navigate to="/login" />} />
+          <Route 
+            path="/manage-rooms" 
+            element={isLoggedIn ? <ManageRooms /> : <Navigate to="/login" />} />                                    
         </Routes>
       </Router>
     </ChakraProvider>

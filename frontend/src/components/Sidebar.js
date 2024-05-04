@@ -80,6 +80,23 @@ const Sidebar = ({ onClose }) => {
             </VStack>
         </AccordionPanel>
         </AccordionItem>
+        <AccordionItem>
+        <h2>
+            <AccordionButton>
+            <Box flex="1" textAlign="left">
+                Settings
+            </Box>
+            <AccordionIcon />
+            </AccordionButton>
+        </h2>
+        <AccordionPanel pb={4}>
+            <VStack align="start" spacing={2}>
+            <RouterLink to="/manage-rooms" onClick={onClose}>
+                Manage rooms
+            </RouterLink>
+            </VStack>
+        </AccordionPanel>
+        </AccordionItem>
     </Accordion>
     </Box>
   );
